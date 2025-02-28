@@ -113,4 +113,4 @@ We welcome contributions from developers, researchers, and enthusiasts. Please c
 ---
 
 ## **License**
-GenAI is released under the MIT License.
+GenAI is released under the Apache 2.0 License.
