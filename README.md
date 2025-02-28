@@ -54,7 +54,7 @@ GenAI represents the next frontier in AI development, not just as a tool but as 
 ## **Roadmap: From Nexus to GenAI**
 
 ### **Phase 1: Project Nexus as the Foundation (0–18 Months)**
-**Objective**: Build the decentralized infrastructure for data storage, secure communication, and distributed AI training to support GenAI.
+**Objective**: Build the decentralized infrastructure for data storage, secure communication, and distributed AI training to support GenAI. Check it out here https://github.com/iyeque/nexus.git. 
 
 - **Steps in Nexus**:
   - Develop the decentralized browser with IPFS and Solid integration for secure, user-controlled data storage.
