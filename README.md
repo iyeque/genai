@@ -1,3 +1,4 @@
+🤖🌐
 # GenAI: The Life Replica
 
 ## **Overview**
