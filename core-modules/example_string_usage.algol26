@@ -1,0 +1,87 @@
+# Example ALGOL 26 program demonstrating utils/string module
+# This program can be used to test the string utilities once the interpreter is ready
+
+begin
+  # Import the string utilities module (syntax TBD based on module system)
+  # For MVP, these functions may be in the global namespace or require 'use'
+  
+  # Example 1: Basic string manipulation
+  var greeting: string := "  Hello, ALGOL 26!  ";
+  println("Original: '", greeting, "'");
+  
+  var trimmed: string := trim(greeting);
+  println("After trim: '", trimmed, "'");
+  
+  var upper: string := toUpper(trimmed);
+  println("Uppercase: '", upper, "'");
+  
+  var lower: string := toLower(upper);
+  println("Lowercase: '", lower, "'");
+  
+  # Example 2: Length and concatenation
+  var len: int := length(trimmed);
+  println("Length of trimmed: ", len);
+  
+  var combined: string := concat("Welcome to ", "ALGOL 26");
+  println("Concatenated: '", combined, "'");
+  
+  # Example 3: Substring extraction
+  var firstWord: string := substring(combined, 1, 7);
+  println("First word: '", firstWord, "'");
+  
+  var rest: string := substring(combined, 9, 9);  #跳过"Welcome to "
+  println("Rest: '", rest, "'");
+  
+  # Example 4: Search operations
+  var text: string := "The quick brown fox jumps over the lazy dog";
+  var searchPos: int := indexOf(text, "fox", 1);
+  if searchPos > 0 then
+    println("Found 'fox' at position: ", searchPos)
+  else
+    println("'fox' not found");
+  
+  var notFound: int := indexOf(text, "cat", 1);
+  println("Search for 'cat': ", if notFound > 0 then "found" else "not found");
+  
+  # Example 5: Prefix and suffix checks
+  if startsWith(text, "The") then
+    println("Text starts with 'The'");
+  
+  if endsWith(text, "dog") then
+    println("Text ends with 'dog'");
+  
+  if not startsWith(text, "quick") then
+    println("Text does not start with 'quick'");
+  
+  # Example 6: Replacement
+  var replaced: string := replace(text, "fox", "cat");
+  println("After replacement: '", replaced, "'");
+  
+  # Example 7: Empty string handling
+  var empty: string := "";
+  println("Empty string length: ", length(empty));
+  if isEmpty(empty) then
+    println("The string is indeed empty");
+  
+  # Example 8: Complex chaining (using temporary variables)
+  var input: string := "  \t\n  ALGOL 26 Programming Language  \n\t  ";
+  var step1: string := trim(input);
+  var step2: string := toUpper(step1);
+  var step3: string := replace(step2, " ", "_");
+  println("Processed: '", step3, "'");
+  
+  # Example 9: Edge cases
+  var singleChar: string := "A";
+  println("Single char '", singleChar, "' - length: ", length(singleChar));
+  
+  var allSpaces: string := "     ";
+  var trimmedSpaces: string := trim(allSpaces);
+  println("All spaces trimmed: '", trimmedSpaces, "' (empty? ", isEmpty(trimmedSpaces), ")");
+  
+  # Example 10: Using substring with full string
+  var full: string := "ABCDEFGHIJ";
+  var sub1: string := substring(full, 1, 3);   # "ABC"
+  var sub2: string := substring(full, 4, 3);   # "DEF"
+  var sub3: string := substring(full, 8, 3);   # "HIJ"
+  println("Substrings: '", sub1, "', '", sub2, "', '", sub3, "'")
+end

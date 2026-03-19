@@ -1,0 +1,374 @@
+# String Utilities Module for ALGOL 26
+# Provides fundamental string manipulation operations
+# Version: 0.1 (stub for interpreter integration)
+# Author: GenAI Core Team
+
+## Module Overview
+
+This module provides essential string manipulation functions for ALGOL 26 programs.
+All functions operate on the built-in `string` type and follow these principles:
+- Immutable: Strings are immutable; all operations return new strings
+- Indexing: 1-based indexing (ALGOL 68 tradition)
+- Unicode-aware: Characters are Unicode scalar values (UTF-32 internally)
+- Error handling: Out-of-bounds indices trigger runtime errors
+
+## Exported Functions
+
+### length(s: string) => int
+Returns the number of characters in the string.
+
+**Type signature:** `proc (string) => int`
+
+**Examples:**
+```algol26
+var len := length("hello");    // 5
+var emptyLen := length("");    // 0
+```
+
+**Implementation stub:**
+```algol26
+proc length(s: string) => int =
+  # Stub: return 0 until interpreter provides string primitives
+  0;
+```
+
+---
+
+### concat(s1: string, s2: string) => string
+Concatenates two strings, returning a new string.
+
+**Type signature:** `proc (string, string) => string`
+
+**Examples:**
+```algol26
+var joined := concat("Hello, ", "World!");  // "Hello, World!"
+var empty := concat("", "");                // ""
+```
+
+**Implementation stub:**
+```algol26
+proc concat(s1: string, s2: string) => string =
+  # Stub: return empty string
+  "";
+```
+
+---
+
+### substring(s: string, start: int, length: int) => string
+Extracts a substring from `s` starting at index `start` (1-based) with the given `length`.
+If `start` is out of bounds or `length` exceeds the string, a runtime error occurs.
+
+**Type signature:** `proc (string, int, int) => string`
+
+**Examples:**
+```algol26
+var sub := substring("ALGOL 26", 1, 5);    // "ALGOL"
+var tail := substring("hello", 2, 4);      // "ello"
+```
+
+**Implementation stub:**
+```algol26
+proc substring(s: string, start: int, length: int) => string =
+  # Stub: return empty string
+  "";
+```
+
+---
+
+### indexOf(s: string, pattern: string, start: int) => int
+Finds the first occurrence of `pattern` in `s` starting at index `start` (1-based).
+Returns the 1-based index if found, or -1 if not found.
+
+**Type signature:** `proc (string, string, int) => int`
+
+**Examples:**
+```algol26
+var pos1 := indexOf("hello world", "world", 1);  // 7
+var pos2 := indexOf("hello", "z", 1);            // -1 (not found)
+```
+
+**Implementation stub:**
+```algol26
+proc indexOf(s: string, pattern: string, start: int) => int =
+  # Stub: return -1 (not found)
+  -1;
+```
+
+---
+
+### toUpper(s: string) => string
+Converts all alphabetic characters in `s` to uppercase.
+Non-alphabetic characters remain unchanged.
+
+**Type signature:** `proc (string) => string`
+
+**Examples:**
+```algol26
+var upper := toUpper("Hello World!");  // "HELLO WORLD!"
+var mixed := toUpper("123abcXYZ");     // "123ABCXYZ"
+```
+
+**Implementation stub:**
+```algol26
+proc toUpper(s: string) => string =
+  # Stub: return input unchanged
+  s;
+```
+
+---
+
+### toLower(s: string) => string
+Converts all alphabetic characters in `s` to lowercase.
+Non-alphabetic characters remain unchanged.
+
+**Type signature:** `proc (string) => string`
+
+**Examples:**
+```algol26
+var lower := toLower("HELLO WORLD!");  // "hello world!"
+var mixed := toLower("123ABCxyz");     // "123abcxyz"
+```
+
+**Implementation stub:**
+```algol26
+proc toLower(s: string) => string =
+  # Stub: return input unchanged
+  s;
+```
+
+---
+
+### trim(s: string) => string
+Removes leading and trailing whitespace characters (spaces, tabs, newlines) from `s`.
+
+**Type signature:** `proc (string) => string`
+
+**Examples:**
+```algol26
+var trimmed := trim("   hello   ");     // "hello"
+var nospace := trim("\n\tabc\t\n");    // "abc"
+var none := trim("no whitespace");     // "no whitespace"
+```
+
+**Implementation stub:**
+```algol26
+proc trim(s: string) => string =
+  # Stub: return input unchanged
+  s;
+```
+
+---
+
+### split(s: string, delimiter: string) => array [?] of string
+Splits `s` into substrings separated by `delimiter`.
+Returns an array of strings. The array size is determined at runtime.
+
+**Note:** The exact array size type will be `array [N] of string` where N is the number of parts.
+MVP may require dynamic arrays for this; if not available, this function will be deferred.
+
+**Type signature (if dynamic arrays available):** `proc (string, string) => array of string`
+**Type signature (if fixed arrays only):** This function may not be implementable in MVP.
+
+**Implementation stub (conceptual):**
+```algol26
+# Deferred if dynamic arrays not supported in MVP
+# proc split(s: string, delimiter: string) => array of string =
+#   # Stub: return single-element array [s]
+#   [s];
+```
+
+---
+
+### replace(s: string, old: string, new: string) => string
+Replaces all occurrences of substring `old` in `s` with `new`.
+If `old` is empty, behavior is undefined (may return `s` unchanged).
+
+**Type signature:** `proc (string, string, string) => string`
+
+**Examples:**
+```algol26
+var replaced := replace("hello world", "world", "ALGOL");  // "hello ALGOL"
+var none := replace("test", "z", "X");                     // "test"
+```
+
+**Implementation stub:**
+```algol26
+proc replace(s: string, old: string, new: string) => string =
+  # Stub: return input unchanged
+  s;
+```
+
+---
+
+### startsWith(s: string, prefix: string) => bool
+Returns `true` if `s` begins with `prefix`, `false` otherwise.
+
+**Type signature:** `proc (string, string) => bool`
+
+**Examples:**
+```algol26
+var yes := startsWith("hello", "he");   // true
+var no := startsWith("hello", "lo");    // false
+```
+
+**Implementation stub:**
+```algol26
+proc startsWith(s: string, prefix: string) => bool =
+  # Stub: return false
+  false;
+```
+
+---
+
+### endsWith(s: string, suffix: string) => bool
+Returns `true` if `s` ends with `suffix`, `false` otherwise.
+
+**Type signature:** `proc (string, string) => bool`
+
+**Examples:**
+```algol26
+var yes := endsWith("hello", "lo");    // true
+var no := endsWith("hello", "he");     // false
+```
+
+**Implementation stub:**
+```algol26
+proc endsWith(s: string, suffix: string) => bool =
+  # Stub: return false
+  false;
+```
+
+---
+
+### isEmpty(s: string) => bool
+Returns `true` if `s` has zero length, `false` otherwise.
+
+**Type signature:** `proc (string) => bool`
+
+**Examples:**
+```algol26
+var e := isEmpty("");         // true
+var ne := isEmpty("hello");   // false
+```
+
+**Implementation stub:**
+```algol26
+proc isEmpty(s: string) => bool =
+  # Stub: return true by default
+  true;
+```
+
+---
+
+## Example Usage Program
+
+```algol26
+# Demonstration of string utilities
+
+begin
+  # Basic operations
+  var s: string := "  Hello, ALGOL 26 World!  ";
+  println("Original: '", s, "'");
+  
+  var trimmed := trim(s);
+  println("Trimmed: '", trimmed, "'");
+  
+  var upper := toUpper(trimmed);
+  println("Uppercase: '", upper, "'");
+  
+  # Length
+  var len := length(upper);
+  println("Length: ", len);
+  
+  # Concatenation
+  var msg := concat("Hello, ", "ALGOL 26!");
+  println("Message: '", msg, "'");
+  
+  # Substring
+  var sub := substring(msg, 1, 5);
+  println("First word: '", sub, "'");
+  
+  # Search
+  var pos := indexOf(msg, "ALGOL", 1);
+  if pos > 0 then
+    println("Found 'ALGOL' at position: ", pos)
+  else
+    println("'ALGOL' not found");
+  
+  # Replacement
+  var replaced := replace(msg, "ALGOL", "AI");
+  println("Replaced: '", replaced, "'");
+  
+  # Check prefix/suffix
+  if startsWith(msg, "Hello") then
+    println("Starts with 'Hello'");
+  
+  if endsWith(msg, "!") then
+    println("Ends with '!'");
+  
+  # Empty check
+  if isEmpty("") then
+    println("Empty string detected");
+  
+  # Character access (future: toCharAt, but can use substring for now)
+  var firstChar := substring(msg, 1, 1);
+  println("First character: '", firstChar, "'")
+end
+```
+
+---
+
+## Implementation Notes for Interpreter
+
+These functions are **stubs** intended for early integration testing.
+When the interpreter's string primitive support is ready, replace stub bodies with:
+
+1. **length:** Call runtime string_length(s) intrinsic
+2. **concat:** Call runtime string_concat(s1, s2) intrinsic
+3. **substring:** Validate indices, then call runtime string_substring(s, start, len)
+4. **indexOf:** Call runtime string_index_of(s, pattern, start)
+5. **toUpper/ Lower:** Call runtime case conversion with Unicode tables
+6. **trim:** Call runtime string_trim(s) scanning from both ends
+7. **replace:** Call runtime string_replace_all(s, old, new)
+8. **startsWith/endsWith:** Compare prefix/suffix using length and substring loop
+9. **isEmpty:** Compare length to 0
+
+All functions should:
+- Perform bounds checking (panic on invalid indices)
+- Handle empty string edge cases correctly
+- Return new strings (do not modify input)
+
+---
+
+## Future Enhancements
+
+- **toCharAt(s: int) => char** - Extract single character at index
+- **toInt(s: string) => int** - Parse integer from string (with error handling)
+- **toReal(s: string) => real** - Parse floating-point from string
+- **padLeft/Right(s: string, width: int, pad: string)** - Padding
+- **reverse(s: string) => string** - Reverse characters (grapheme-aware?)
+- **contains(s: string, pattern: string) => bool** - Substring existence
+- **lines(s: string) => array of string** - Split by newlines
+- **join(parts: array of string, sep: string) => string** - Join array with separator
+- **compare(s1: string, s2: string) => int** - Lexicographic comparison (<0, 0, >0)
+
+---
+
+## Module Metadata
+
+**Module name:** `utils/string`
+**Export declarations:** All `proc` functions listed above
+**Dependencies:** None (uses only built-in `string`, `int`, `bool` types)
+**MVP Compatibility:** Suitable for Week 2 interpreter
+**Status:** Stub implementation ready for interpreter integration
+
+All functions follow ALGOL 26's syntax conventions:
+- `proc` keyword for function declarations
+- Type annotations after colon `:` for parameters
+- Return type after `=>`
+- Single-expression form for pure functions (no `begin...end` needed)
+- Semicolons terminate declarations
+
+---
+
+*End of string utilities module specification.*
