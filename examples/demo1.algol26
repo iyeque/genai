@@ -1,0 +1,9 @@
+module demo
+{
+  // Basic arithmetic with let-polymorphism
+  func square(x: int) -> int = x * x
+  
+  func main() =
+    let result = square(5) in
+    print(result)
+}
