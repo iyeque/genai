@@ -4,6 +4,7 @@ ALGOL 26 Interpreter
 Evaluates AST with environment, scopes, and built-in functions.
 Implements the runtime semantics for MVP subset.
 """
+import os
 
 from src.ast import (
     ASTNode, Program, Expr, Stmt,
@@ -16,6 +17,9 @@ from src.ast import (
     Token,
 )
 from src.builtins import Builtins
+from src.lexer import Lexer
+from src.parser import Parser
+
 from src.lexer import TokenType
 from src.type_system import PrimitiveType, ArrayType, RecordType
 from typing import Any, List, Dict, Optional, Union
@@ -92,7 +96,8 @@ class Environment:
 
 
 class Interpreter:
-    def __init__(self):
+    def __init__(self, base_path=None):
+        self.base_path = base_path or os.getcwd()
         self.global_env = Environment()
         self.current_env = self.global_env
         self._setup_builtins()
@@ -326,6 +331,73 @@ class Interpreter:
             print(f"VERIFICATION FAILED: {stmt.message or ''}")
 
     # Expressions
+
+    def eval_ImportStmt(self, stmt: ImportStmt):
+        """Import symbols from another module at runtime."""
+        module_name = stmt.module_name
+        # Compute search directories: base_path, local, vendor, stdlib
+        search_dirs = [
+            self.base_path,
+            os.path.join(self.base_path, 'local'),
+            os.path.join(self.base_path, 'vendor'),
+            os.path.join(self.base_path, 'stdlib')
+        ]
+        file_path = None
+        for d in search_dirs:
+            candidate = os.path.join(d, *module_name.split('.')) + '.algol26'
+            if os.path.exists(candidate):
+                file_path = candidate
+                break
+        if file_path is None:
+            raise InterpreterError(f"Module '{module_name}' not found", stmt)
+        # For simplicity, evaluate the module in a fresh interpreter and merge its global env
+        # In a more efficient implementation, we could cache the module's evaluated env.
+        import_interpreter = Interpreter(base_path=os.path.dirname(file_path))
+        # Parse and evaluate the module file
+        with open(file_path, 'r') as f:
+            source = f.read()
+        lexer = Lexer(source)
+        parser = Parser(lexer)
+        ast = parser.parse()
+        # Evaluate the module (its top-level statements will populate its global_env)
+        import_interpreter.eval(ast)
+        # Now bring in the module's globals into current env, respecting selective import/alias
+        mod_env = import_interpreter.global_env
+        if stmt.names is not None:
+            # Selective import: only bring listed names
+            for name in stmt.names:
+                if name not in mod_env.vars and name not in mod_env.consts and name not in mod_env.functions:
+                    raise InterpreterError(f"Module '{module_name}' does not export '{name}'", stmt)
+                if name in mod_env.vars:
+                    self.current_env.define(name, mod_env.vars[name], is_const=False)
+                if name in mod_env.consts:
+                    self.current_env.define(name, mod_env.consts[name], is_const=True)
+                if name in mod_env.functions:
+                    self.current_env.define_function(name, mod_env.functions[name])
+        else:
+            # Wildcard import: bring all top-level bindings
+            for name, value in mod_env.vars.items():
+                self.current_env.define(name, value, is_const=False)
+            for name, value in mod_env.consts.items():
+                self.current_env.define(name, value, is_const=True)
+            for name, value in mod_env.functions.items():
+                self.current_env.define_function(name, value)
+        # Handle alias: bind the entire module namespace as a record-like object
+        if stmt.alias:
+            # Create a namespace object that proxies the module's env? We'll store a simple object that holds the module's env.
+            # For simplicity, we'll bind alias to a dict containing the module's symbols, but for runtime, we need attribute access.
+            # We'll just bind the module's environment under the alias; then uses like alias::symbol need to be handled by interpreter.
+            # But our language syntax for alias likely expects module_name as namespace prefix. That would require handling in identifier lookups.
+            # To keep MVP simple, we'll just stash the module interpreter's global env as a value, and later when accessing alias.name, we need a lookup.
+            # Not implemented fully; for now, we'll ignore alias or store the interpreter's global_env as a namespace object.
+            self.current_env.define(stmt.alias, mod_env, is_const=False)  # store the Environment itself as a value (non-standard)
+    def eval_ExportStmt(self, stmt: ExportStmt):
+        # No runtime effect
+        pass
+
+    def eval_ModuleDeclStmt(self, stmt: ModuleDeclStmt):
+        # No runtime effect
+        pass
     def eval_LiteralExpr(self, expr: LiteralExpr):
         tok = expr.token
         if tok.type == TokenType.INTEGER:

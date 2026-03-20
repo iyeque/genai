@@ -619,15 +619,16 @@ class ConstraintGenerator:
     def process_import(self, stmt: ImportStmt):
         module_name = stmt.module_name
         # Convert module name to file path components
-        module_path = os.path.join(self.base_path, *module_name.split('.'))
-        # Search in base_path and subdirectories: local, vendor, stdlib
-        search_dirs = [self.base_path,
-                       os.path.join(self.base_path, 'local'),
-                       os.path.join(self.base_path, 'vendor'),
-                       os.path.join(self.base_path, 'stdlib')]
+        # Search for the module file in the search path
+        search_dirs = [
+            self.base_path,
+            os.path.join(self.base_path, 'local'),
+            os.path.join(self.base_path, 'vendor'),
+            os.path.join(self.base_path, 'stdlib')
+        ]
         file_path = None
         for d in search_dirs:
-            candidate = os.path.join(d, module_path + '.algol26')
+            candidate = os.path.join(d, *module_name.split('.')) + '.algol26'
             if os.path.exists(candidate):
                 file_path = candidate
                 break

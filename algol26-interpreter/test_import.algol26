@@ -1,0 +1,5 @@
+import math.{add, mul};
+begin
+  println(add(2,3));   // should print 5
+  println(mul(4,5));   // should print 20
+end

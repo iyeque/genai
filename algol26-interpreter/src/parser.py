@@ -290,19 +290,31 @@ class Parser:
         # Parse module path: one or more IDENT separated by '.'
         parts = [self.expect(TokenType.IDENT).value]
         while self.match(TokenType.DOT):
-            self.advance()
-            parts.append(self.expect(TokenType.IDENT).value)
+            # Check if there is an IDENT after the dot (to avoid consuming dot for selective import)
+            next_tok = self.peek()
+            if next_tok is not None and next_tok.type == TokenType.IDENT:
+                self.advance()  # consume DOT
+                parts.append(self.expect(TokenType.IDENT).value)
+            else:
+                break
         module_name = '.'.join(parts)
 
         alias = None
         names = None
 
-        if self.match(TokenType.AS):
+        # Selective import with dot: import M.{a,b} or direct brace after module
+        if self.match(TokenType.DOT):
             self.advance()
-            alias = self.expect(TokenType.IDENT).value
-
-        if self.match(TokenType.LBRACE):
-            # Selective import: import M.{a, b, c}
+            self.expect(TokenType.LBRACE)
+            names = []
+            if not self.match(TokenType.RBRACE):
+                names.append(self.expect(TokenType.IDENT).value)
+                while self.match(TokenType.COMMA):
+                    self.advance()
+                    names.append(self.expect(TokenType.IDENT).value)
+            self.expect(TokenType.RBRACE)
+        elif self.match(TokenType.LBRACE):
+            # Direct selective without dot (allowed)
             self.advance()
             names = []
             if not self.match(TokenType.RBRACE):
@@ -311,6 +323,9 @@ class Parser:
                     self.advance()
                     names.append(self.expect(TokenType.IDENT).value)
             self.expect(TokenType.RBRACE)
+        elif self.match(TokenType.AS):
+            self.advance()
+            alias = self.expect(TokenType.IDENT).value
 
         self.expect(TokenType.SEMI)
         return ImportStmt(module_name=module_name, alias=alias, names=names, token=token)
