@@ -1,0 +1,4 @@
+proc f() => real = 2.0^3.0;
+begin
+  println(f());
+end

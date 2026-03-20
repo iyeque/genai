@@ -1,0 +1,4 @@
+proc f() => real = 1.0/(1.0+0.5);
+begin
+  println(f());
+end

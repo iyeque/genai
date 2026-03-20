@@ -1,0 +1,4 @@
+proc f() => real = 10/2;
+begin
+  println(f());
+end

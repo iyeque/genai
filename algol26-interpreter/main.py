@@ -1,0 +1,65 @@
+#!/usr/bin/env python3
+"""
+ALGOL 26 Interpreter - Main Entry Point
+
+Usage: python main.py <source_file>
+"""
+
+import sys
+from src.lexer import Lexer, LexerError
+from src.parser import Parser, ParserError
+from src.interpreter import Interpreter, InterpreterError
+
+
+def main():
+    if len(sys.argv) < 2:
+        print("Usage: python main.py <source_file>")
+        sys.exit(1)
+
+    filename = sys.argv[1]
+    try:
+        with open(filename, 'r', encoding='utf-8') as f:
+            source = f.read()
+    except FileNotFoundError:
+        print(f"Error: File '{filename}' not found")
+        sys.exit(1)
+    except Exception as e:
+        print(f"Error reading file: {e}")
+        sys.exit(1)
+
+    try:
+        lexer = Lexer(source)
+        tokens = lexer.tokenize()
+        # Optionally print tokens for debugging
+        # print("Tokens:")
+        # for tok in tokens:
+        #     print(tok)
+
+        parser = Parser(Lexer(source))  # Re-lexer for parser (or reuse tokens)
+        ast = parser.parse()
+
+        # print("AST:")
+        # print(ast)
+
+        interpreter = Interpreter()
+        result = interpreter.eval(ast)
+        # Program result is typically None unless top-level expression returns something
+        # We don't print it unless needed.
+    except InterpreterError as e:
+        print(f"Runtime error: {e}")
+        sys.exit(1)
+    except ParserError as e:
+        print(f"Parse error: {e}")
+        sys.exit(1)
+    except LexerError as e:
+        print(f"Lexer error: {e}")
+        sys.exit(1)
+    except Exception as e:
+        print(f"Unexpected error: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

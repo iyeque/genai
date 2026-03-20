@@ -1,0 +1,4 @@
+proc test() => int = 42;
+begin
+  println(test());
+end
