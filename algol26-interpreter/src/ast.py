@@ -2,10 +2,14 @@
 ALGOL 26 Abstract Syntax Tree (AST) Nodes
 
 Represents the parsed structure of an ALGOL 26 program.
+Uses Type objects from src.type_system for type annotations.
 """
 
 from dataclasses import dataclass
 from typing import List, Optional, Union, Any
+
+# Import type system; note: type_system imports nothing from ast, so safe.
+from src.type_system import Type, PrimitiveType, ArrayType, RecordType, FunctionType, TypeName
 
 
 # Base node
@@ -22,55 +26,39 @@ class Expr(ASTNode):
 @dataclass
 class LiteralExpr(Expr):
     value: Any
-    token: Token  # Keep token for type information and error reporting
+    token: Any  # Token from lexer; we keep for location and maybe literal type
 
     def __post_init__(self):
-        # Determine type from token
-        if self.token.type == TokenType.INTEGER:
-            self.expr_type = 'int'
-            self.value = int(self.value)
-        elif self.token.type == TokenType.REAL:
-            self.expr_type = 'real'
-            self.value = float(self.value)
-        elif self.token.type in (TokenType.TRUE, TokenType.FALSE):
-            self.expr_type = 'bool'
-            self.value = self.value == 'true'
-        elif self.token.type == TokenType.CHAR:
-            self.expr_type = 'char'
-        elif self.token.type == TokenType.STRING:
-            self.expr_type = 'string'
-        elif self.token.type == TokenType.NULL:
-            self.expr_type = 'null'
-        else:
-            self.expr_type = None
+        # We don't set expr_type here; static type inference will determine type
+        self.expr_type: Optional[Type] = None
 
 
 @dataclass
 class IdentifierExpr(Expr):
     name: str
-    token: Token
+    token: Any
 
     def __post_init__(self):
-        self.expr_type = None  # To be resolved by semantic analysis
+        self.expr_type: Optional[Type] = None
 
 
 @dataclass
 class BinaryOpExpr(Expr):
     left: Expr
-    op: Token  # Operator token
+    op: Any  # Token
     right: Expr
 
     def __post_init__(self):
-        self.expr_type = None
+        self.expr_type: Optional[Type] = None
 
 
 @dataclass
 class UnaryOpExpr(Expr):
-    op: Token
+    op: Any
     operand: Expr
 
     def __post_init__(self):
-        self.expr_type = None
+        self.expr_type: Optional[Type] = None
 
 
 @dataclass
@@ -79,7 +67,7 @@ class CallExpr(Expr):
     args: List[Expr]
 
     def __post_init__(self):
-        self.expr_type = None
+        self.expr_type: Optional[Type] = None
 
 
 @dataclass
@@ -88,17 +76,17 @@ class ArrayIndexExpr(Expr):
     index: Expr
 
     def __post_init__(self):
-        self.expr_type = None
+        self.expr_type: Optional[Type] = None
 
 
 @dataclass
 class RecordAccessExpr(Expr):
     record: Expr
-    field: str  # identifier
-    token: Token
+    field: str
+    token: Any
 
     def __post_init__(self):
-        self.expr_type = None
+        self.expr_type: Optional[Type] = None
 
 
 @dataclass
@@ -106,16 +94,16 @@ class ArrayConstructorExpr(Expr):
     elements: List[Expr]
 
     def __post_init__(self):
-        self.expr_type = None
+        self.expr_type: Optional[Type] = None
 
 
 @dataclass
 class RecordConstructorExpr(Expr):
-    type_name: str  # record type identifier
-    field_values: dict  # field_name -> Expr
+    type_name: str  # record type identifier (name)
+    field_values: Dict[str, Expr]  # field_name -> Expr
 
     def __post_init__(self):
-        self.expr_type = None
+        self.expr_type: Optional[Type] = None
 
 
 @dataclass
@@ -123,7 +111,7 @@ class ParenExpr(Expr):
     expr: Expr
 
     def __post_init__(self):
-        self.expr_type = None
+        self.expr_type: Optional[Type] = None
 
 
 @dataclass
@@ -133,26 +121,24 @@ class TernaryExpr(Expr):
     else_expr: Expr
 
     def __post_init__(self):
-        self.expr_type = None
+        self.expr_type: Optional[Type] = None
 
 
 @dataclass
 class ProbExpr(Expr):
-    """Probabilistic expression: prob identifier ~ distribution"""
     identifier: str
-    distribution: Expr  # distribution expression
+    distribution: Expr
 
     def __post_init__(self):
-        self.expr_type = None
+        self.expr_type: Optional[Type] = None
 
 
 @dataclass
 class SampleExpr(Expr):
-    """Sample from distribution: sample(expr)"""
     distribution_expr: Expr
 
     def __post_init__(self):
-        self.expr_type = None
+        self.expr_type: Optional[Type] = None
 
 
 # Statements
@@ -164,28 +150,28 @@ class Stmt(ASTNode):
 @dataclass
 class VarDeclStmt(Stmt):
     name: str
-    type_name: Optional[str]  # None means inferred
+    type_annot: Optional[Type]  # None means inferred
     init_expr: Optional[Expr]
-    token: Token  # var token
+    token: Any
 
     def __post_init__(self):
-        self.declared_type = None  # To be resolved
+        self.declared_type: Optional[Type] = None  # will hold inferred/checked type
 
 
 @dataclass
 class ConstDeclStmt(Stmt):
     name: str
-    type_name: str
+    type_annot: Type
     init_expr: Expr
 
     def __post_init__(self):
-        self.declared_type = None
+        self.declared_type: Optional[Type] = None
 
 
 @dataclass
 class TypeDeclStmt(Stmt):
     name: str
-    type_def: 'TypeDef'  # Forward reference
+    type_annot: Type  # The type that this name aliases or defines
 
     def __post_init__(self):
         pass
@@ -235,7 +221,7 @@ class ForStmt(Stmt):
     end: Expr
     step: Optional[Expr]
     body: Stmt
-    direction: str  # 'to' or 'downto'
+    direction: str
 
     def __post_init__(self):
         pass
@@ -243,7 +229,7 @@ class ForStmt(Stmt):
 
 @dataclass
 class ReturnStmt(Stmt):
-    value: Optional[Expr]  # None for procedures
+    value: Optional[Expr]
 
     def __post_init__(self):
         pass
@@ -280,7 +266,6 @@ class AssertStmt(Stmt):
 
 @dataclass
 class ProbBlockStmt(Stmt):
-    """prob block: prob declarations and observations"""
     statements: List[Stmt]
 
     def __post_init__(self):
@@ -289,7 +274,6 @@ class ProbBlockStmt(Stmt):
 
 @dataclass
 class CausalBlockStmt(Stmt):
-    """causal block for causal inference"""
     statements: List[Stmt]
 
     def __post_init__(self):
@@ -298,7 +282,6 @@ class CausalBlockStmt(Stmt):
 
 @dataclass
 class VerifyBlockStmt(Stmt):
-    """verify block for formal verification"""
     condition: Expr
     message: Optional[str]
 
@@ -306,13 +289,42 @@ class VerifyBlockStmt(Stmt):
         pass
 
 
+@dataclass
+class ImportStmt(Stmt):
+    module_name: str
+    alias: Optional[str] = None
+    names: Optional[List[str]] = None
+    token: Any = None
+
+    def __post_init__(self):
+        pass
+
+
+@dataclass
+class ExportStmt(Stmt):
+    names: List[str]
+    token: Any = None
+
+    def __post_init__(self):
+        pass
+
+
+
+@dataclass
+class ModuleDeclStmt(Stmt):
+    name: str
+    token: Any = None
+
+    def __post_init__(self):
+        pass
+
 # Procedure/Function declaration
 @dataclass
 class ProcDeclStmt(Stmt):
     name: str
-    params: List['Param']  # List of Parameter objects
-    return_type: Optional[str]  # None means void/procedure
-    body: Union[BlockStmt, Expr]  # Expression form or block form
+    params: List['Param']
+    return_type: Optional[Type]  # None means void
+    body: Union['BlockStmt', Expr]
 
     def __post_init__(self):
         pass
@@ -321,55 +333,27 @@ class ProcDeclStmt(Stmt):
 @dataclass
 class Param:
     name: str
-    type_name: str
+    type_annot: Type
     is_ref: bool = False
 
     def __post_init__(self):
         pass
 
 
-# Types
-@dataclass
-class TypeDef:
-    """Type definition for records, arrays, etc."""
-    pass
-
-
-@dataclass
-class RecordTypeDef(TypeDef):
-    fields: List['FieldDef']
-
-
-@dataclass
-class FieldDef:
-    name: str
-    type_name: str
-
-
-@dataclass
-class ArrayTypeDef(TypeDef):
-    size: Optional[Expr]  # None means dynamic (future)
-    element_type: str
-
-
-@dataclass
-class ProcTypeDef(TypeDef):
-    params: List[Param]
-    return_type: Optional[str]
-
+# No separate TypeDef nodes; type annotations are directly Type objects.
 
 # Program
 @dataclass
 class Program(ASTNode):
-    declarations: List[Stmt]  # Top-level declarations (type, var, const, proc)
-    statements: List[Stmt]    # Top-level statements (usually a block)
+    declarations: List[Stmt]
+    statements: List[Stmt]
 
     def __post_init__(self):
         pass
 
 
-# Import Token for type annotations in AST nodes
+# Import token types for parser reference
 from src.lexer import Token, TokenType
 
-# To resolve forward reference for TypeDef in ProcDeclStmt
+# Forward reference resolution for ProcDeclStmt body type (already fine)
 ProcDeclStmt.__annotations__['body'] = "Union['BlockStmt', 'Expr']"

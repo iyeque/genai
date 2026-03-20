@@ -22,27 +22,23 @@ Minimal Viable Interpreter (MVI) for ALGOL 26, built in Python.
 
 ## Features
 
-The MVP interpreter implements:
+The interpreter now implements:
 
-- Lexical syntax: identifiers, literals (int, real, bool, char, string), comments, operators.
-- Core grammar: variables, control flow (if, while, for), functions (proc), arrays, records, expressions.
-- Built-in functions: `println`, `print`, and basic math (`exp`, `sqrt`, `sin`, `cos`, `tan`, `log`, `abs`, etc.)
-- Advanced feature stub: `prob` (recognized but stubbed)
-- Static typing with basic inference (`var x := ...`).
+- **Full static type checking** using Hindley-Milner inference with extensions:
+  - Parametric polymorphism
+  - Algebraic Data Types (ADT) (stubbed)
+  - Row polymorphism for extensible records
+  - Lightweight effect tracking (pure vs impure)
+- **Module system**:
+  - `module` declarations
+  - `import` statements with selective, renamed, and wildcard imports
+  - `export` statements to control visibility
+  - Search path: `./local:./vendor:./stdlib`
+- Core language: variables, control flow (if, while, for), functions (proc), arrays, records.
+- Built-in functions: `println`, `print`, math functions (`exp`, `sqrt`, `sin`, `cos`, `tan`, `log`, `abs`, etc.)
+- Advanced feature stubs: `prob`, `causal`, `verify`, `async`, `await`, `chan`.
 
-## Running Programs
-
-Run an ALGOL 26 source file:
-
-```bash
-python main.py tests/hello.algol26
-```
-
-or
-
-```bash
-python main.py tests/ai-demo.algol26
-```
+See `docs/` for detailed specifications.
 
 ## Demo Programs
 

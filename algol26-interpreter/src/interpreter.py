@@ -17,6 +17,7 @@ from src.ast import (
 )
 from src.builtins import Builtins
 from src.lexer import TokenType
+from src.type_system import PrimitiveType, ArrayType, RecordType
 from typing import Any, List, Dict, Optional, Union
 import math
 
@@ -177,13 +178,13 @@ class Interpreter:
         else:
             # Default initialization: 0 for numeric, false for bool, "" for string, etc.
             # We need to know declared type. For inferred: use init_val's type.
-            if stmt.type_name:
-                init_val = self.default_value(stmt.type_name)
+            if stmt.type_annot:
+                init_val = self.default_value(stmt.type_annot)
             else:
                 init_val = None  # Should not happen if type inference
         self.current_env.define(stmt.name, init_val, is_const=False)
         # Store type info if present
-        if stmt.type_name:
+        if stmt.type_annot:
             # Could store in env.types for later checking, but we already enforced during semantic?
             pass
 
@@ -326,7 +327,21 @@ class Interpreter:
 
     # Expressions
     def eval_LiteralExpr(self, expr: LiteralExpr):
-        return expr.value
+        tok = expr.token
+        if tok.type == TokenType.INTEGER:
+            return int(tok.value)
+        elif tok.type == TokenType.REAL:
+            return float(tok.value)
+        elif tok.type in (TokenType.TRUE, TokenType.FALSE):
+            return tok.type == TokenType.TRUE  # true if token is TRUE
+        elif tok.type == TokenType.CHAR:
+            return tok.value
+        elif tok.type == TokenType.STRING:
+            return tok.value
+        elif tok.type == TokenType.NULL:
+            return None
+        else:
+            return expr.value
 
     def eval_IdentifierExpr(self, expr: IdentifierExpr):
         return self.current_env.get(expr.name)
@@ -448,7 +463,7 @@ class Interpreter:
         return self.eval(expr.expr)
 
     # Utility
-    def default_value(self, type_name: str) -> Any:
+    def default_value(self, type_obj) -> Any:
         """Return default zero value for a type."""
         if type_name == 'int':
             return 0

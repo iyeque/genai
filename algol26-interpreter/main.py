@@ -5,10 +5,12 @@ ALGOL 26 Interpreter - Main Entry Point
 Usage: python main.py <source_file>
 """
 
+import os
 import sys
 from src.lexer import Lexer, LexerError
 from src.parser import Parser, ParserError
 from src.interpreter import Interpreter, InterpreterError
+from typechecker.typecheck import typecheck_program, TypeCheckError as TCError
 
 
 def main():
@@ -29,22 +31,20 @@ def main():
 
     try:
         lexer = Lexer(source)
-        tokens = lexer.tokenize()
-        # Optionally print tokens for debugging
-        # print("Tokens:")
-        # for tok in tokens:
-        #     print(tok)
-
-        parser = Parser(Lexer(source))  # Re-lexer for parser (or reuse tokens)
+        parser = Parser(lexer)
         ast = parser.parse()
 
-        # print("AST:")
-        # print(ast)
+        # Type checking phase
+        try:
+            base_path = os.path.dirname(os.path.abspath(filename)) or '.'
+            type_env = typecheck_program(ast, base_path=base_path)
+            # Type checking passed
+        except TCError as e:
+            print(f"Type error: {e}")
+            sys.exit(1)
 
         interpreter = Interpreter()
         result = interpreter.eval(ast)
-        # Program result is typically None unless top-level expression returns something
-        # We don't print it unless needed.
     except InterpreterError as e:
         print(f"Runtime error: {e}")
         sys.exit(1)

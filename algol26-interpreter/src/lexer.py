@@ -93,11 +93,13 @@ class TokenType(Enum):
     SELECT = auto()
     LOCK = auto()
     ATOMIC = auto()
+    CONVERT = auto()
     # Modules
     MODULE = auto()
     IMPORT = auto()
     EXPORT = auto()
     FROM = auto()
+    AS = auto()
 
     # Operators
     PLUS = auto()
@@ -250,6 +252,7 @@ class Lexer:
         'import': TokenType.IMPORT,
         'export': TokenType.EXPORT,
         'from': TokenType.FROM,
+        'as': TokenType.AS,
     }
 
     # Multi-character operators (maximal munch - order by length decreasing)
@@ -330,12 +333,12 @@ class Lexer:
 
     def skip_comment(self):
         """Skip single-line or multi-line comment."""
-        if self.current_char == '/' and self.peek() == '/':
+        if self.current_char == '/' and self.peek(2) == '//':
             # Single-line comment
             self.advance(2)  # skip //
             while self.current_char is not None and self.current_char != '\n':
                 self.advance()
-        elif self.current_char == '/' and self.peek() == '*':
+        elif self.current_char == '/' and self.peek(2) == '/*':
             # Multi-line comment (supports nesting)
             self.advance(2)  # skip /*
             nest_level = 1
@@ -508,7 +511,7 @@ class Lexer:
                 continue
 
             # Comments
-            if self.current_char == '/' and self.peek() in ('/', '*'):
+            if self.current_char == '/' and self.peek(2) in ('//', '/*'):
                 self.skip_comment()
                 continue
 
