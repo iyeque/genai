@@ -80,6 +80,7 @@ class TokenType(Enum):
     PROB = auto()
     CAUSAL = auto()
     VERIFY = auto()
+    GIVEN = auto()
     ASSUME = auto()
     REQUIRES = auto()
     ENSURES = auto()
@@ -234,6 +235,7 @@ class Lexer:
         'prob': TokenType.PROB,
         'causal': TokenType.CAUSAL,
         'verify': TokenType.VERIFY,
+        'given': TokenType.GIVEN,
         'assume': TokenType.ASSUME,
         'requires': TokenType.REQUIRES,
         'ensures': TokenType.ENSURES,

@@ -141,6 +141,25 @@ class SampleExpr(Expr):
         self.expr_type: Optional[Type] = None
 
 
+@dataclass
+class ProbBlockExpr(Expr):
+    """Expression form of a probabilistic block: prob { ... }"""
+    statements: List[Stmt]
+
+    def __post_init__(self):
+        self.expr_type: Optional[Type] = None
+
+
+@dataclass
+class GivenExpr(Expr):
+    """Conditional distribution: dist given (condition)"""
+    dist: Expr
+    condition: Expr
+
+    def __post_init__(self):
+        self.expr_type: Optional[Type] = None
+
+
 # Statements
 @dataclass
 class Stmt(ASTNode):

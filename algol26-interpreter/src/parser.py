@@ -14,6 +14,7 @@ from src.ast import (
     VarDeclStmt, ConstDeclStmt, TypeDeclStmt, AssignmentStmt, ProcCallStmt,
     IfStmt, WhileStmt, ForStmt, ReturnStmt, BlockStmt, ExprStmt, SkipStmt, AssertStmt,
     ProbBlockStmt, CausalBlockStmt, VerifyBlockStmt,
+    ProbBlockExpr, GivenExpr,
     ImportStmt, ExportStmt, ModuleDeclStmt,
     ProcDeclStmt, Param,
 )
@@ -32,6 +33,7 @@ class Parser:
     PRECEDENCE = {
         TokenType.OR: 1,
         TokenType.AND: 2,
+        TokenType.GIVEN: 1,  # conditioning operator, very low precedence
         TokenType.EQ: 3, TokenType.NEQ: 3, TokenType.LT: 3, TokenType.LTE: 3, TokenType.GT: 3, TokenType.GTE: 3,
         TokenType.PLUS: 4, TokenType.MINUS: 4,
         TokenType.STAR: 5, TokenType.SLASH: 5, TokenType.PERCENT: 5,
@@ -407,20 +409,12 @@ class Parser:
 
     def parse_prob_block(self) -> ProbBlockStmt:
         self.expect(TokenType.PROB)
-        self.expect(TokenType.LBRACE)
-        statements = []
-        while not self.match(TokenType.RBRACE) and not self.match(TokenType.EOF):
-            statements.append(self.parse_statement())
-        self.expect(TokenType.RBRACE)
+        statements = self._parse_brace_block()
         return ProbBlockStmt(statements=statements)
 
     def parse_causal_block(self) -> CausalBlockStmt:
         self.expect(TokenType.CAUSAL)
-        self.expect(TokenType.LBRACE)
-        statements = []
-        while not self.match(TokenType.RBRACE) and not self.match(TokenType.EOF):
-            statements.append(self.parse_statement())
-        self.expect(TokenType.RBRACE)
+        statements = self._parse_brace_block()
         return CausalBlockStmt(statements=statements)
 
     def parse_verify_block(self) -> VerifyBlockStmt:
@@ -575,3 +569,12 @@ class Parser:
                 self.advance()
                 args.append(self.parse_expression())
         return args
+
+    def _parse_brace_block(self) -> List[Stmt]:
+        """Parse a block enclosed in { } (used by prob and causal blocks)."""
+        self.expect(TokenType.LBRACE)
+        statements = []
+        while not self.match(TokenType.RBRACE) and not self.match(TokenType.EOF):
+            statements.append(self.parse_statement())
+        self.expect(TokenType.RBRACE)
+        return statements
