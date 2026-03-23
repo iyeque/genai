@@ -2,19 +2,31 @@
 
 **Purpose:** This document outlines the comprehensive implementation plan for ALGOL 26, a language designed from the ground up to be the default language for AGI development in the GenAI ecosystem. The roadmap translates the vision into actionable phases, with technical specifications, success criteria, and risk mitigation strategies.
 
-**Current State (Phase 1 - Complete):**
-- Minimum Viable Interpreter (MVI) implemented in Python
-- Fully functional lexer, parser, AST, and interpreter
-- Core features working: variables, control flow (if/while/for), functions, arrays, records, basic I/O, math builtins
-- Demo programs run successfully
+**Current State (Phase 2 — Complete as of 2026-03-23):**
+- ✅ Phase 1 (MVI) — Complete: Python interpreter with lexer, parser, AST, interpreter, builtins, demo programs.
+- ✅ Phase 2 (Type System + Modules) — **Complete and published** (Git tag: `phase-2-complete`):
+  - Full static type checking using Hindley-Milner inference with extensions:
+    - Parametric polymorphism (generic functions and types)
+    - Algebraic Data Types (ADT) stub
+    - Row polymorphism for extensible records
+    - Lightweight effect tracking (pure vs impure)
+  - Module system: `module` declarations, `import` (selective/renamed/wildcard), `export` visibility control, search path `./local:./vendor:./stdlib`, cycle detection.
+  - All MVI demo programs (`hello.algol26`, `ai-demo.algol26`, etc.) pass type checking and run successfully.
+  - Documentation: `docs/type_system.md`, `docs/module_system.md`, updated README.
+  - Repository: `origin/main` includes complete implementation; tag `phase-2-complete` marks the milestone.
 - Repository structure:
   ```
   genai/
-    algol26-interpreter/   # MVI Python implementation
-    core-modules/          # Specification drafts (existing)
-    docs/                  # Documentation (to be created)
-    tests/                 # Test suite (to be expanded)
+    algol26-interpreter/   # MVI + Phase 2 Python implementation
+      src/                 # lexer, parser, ast, interpreter, type_system
+      typechecker/         # inference, typecheck, modules
+      tests/               # demo programs, Phase 2 tests, import/module tests
+      docs/                # type system spec, module system guide
+    core-modules/          # Specification drafts
+    ALGOL_26_ROADMAP_v1.0.md
   ```
+
+**Next Phase:** Phase 3 — Probabilistic + Causal Primitives (Months 2-3) — in progress.
 
 **Guiding Principles:**
 1. **AGI-First Design:** Every feature must serve AGI development needs (reasoning, learning, self-modification)
