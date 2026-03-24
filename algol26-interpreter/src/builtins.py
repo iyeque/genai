@@ -7,6 +7,9 @@ Provides built-in operations like println, math functions, etc.
 import math
 from typing import Any, List
 
+# Import distribution classes (define in separate module)
+from src.distributions import Bernoulli, Normal, Uniform, Distribution
+
 
 class Builtins:
     """Namespace for built-in functions."""
@@ -101,6 +104,22 @@ class Builtins:
     @staticmethod
     def len(x: Union[str, list, dict]) -> int:
         return len(x)
+
+    # Probabilistic programming: distribution constructors
+    @staticmethod
+    def bernoulli(p: float) -> Distribution:
+        """Construct Bernoulli(p) distribution."""
+        return Bernoulli(p)
+
+    @staticmethod
+    def normal(mean: float, stddev: float) -> Distribution:
+        """Construct Normal(mean, stddev) distribution."""
+        return Normal(mean, stddev)
+
+    @staticmethod
+    def uniform(a: Any, b: Any) -> Distribution:
+        """Construct Uniform(a, b) distribution (int or float)."""
+        return Uniform(a, b)
 
     # Probabilistic programming stub
     @staticmethod
