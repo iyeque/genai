@@ -13,7 +13,7 @@ from src.ast import (
     ParenExpr,
     VarDeclStmt, ConstDeclStmt, TypeDeclStmt, AssignmentStmt, ProcCallStmt,
     IfStmt, WhileStmt, ForStmt, ReturnStmt, BlockStmt, ExprStmt, SkipStmt, AssertStmt,
-    ProcDeclStmt, Param, ProbBindStmt, ProbExpr, SampleExpr, GivenExpr,
+    ProcDeclStmt, Param, ProbBindStmt, ProbExpr, SampleExpr, GivenExpr, ProbBlockExpr,
     ProbBlockStmt, CausalBlockStmt, VerifyBlockStmt,
     Token,
 )
