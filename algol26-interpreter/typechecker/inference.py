@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 
 from src.type_system import (
     Type, TypeVar, FunctionType, ArrayType, RecordType, ADTType, ADTConstructor,
-    PrimitiveType, TypeName, BuiltinType, Substitution, UnificationError,
+    PrimitiveType, TypeName, BuiltinType, DistType, Substitution, UnificationError,
     fresh_type_var, fresh_row_var,
     INT_TYPE, REAL_TYPE, BOOL_TYPE, STRING_TYPE, CHAR_TYPE, VOID_TYPE,
     apply_subst, compose_subst,
@@ -23,7 +23,7 @@ from src.ast import (
     ASTNode, Expr, Stmt,
     LiteralExpr, IdentifierExpr, BinaryOpExpr, UnaryOpExpr, CallExpr,
     ArrayIndexExpr, RecordAccessExpr, ArrayConstructorExpr, RecordConstructorExpr,
-    ParenExpr, TernaryExpr, ProbExpr, SampleExpr,
+    ParenExpr, TernaryExpr, ProbExpr, SampleExpr, GivenExpr,
     VarDeclStmt, ConstDeclStmt, TypeDeclStmt, AssignmentStmt, ProcCallStmt,
     IfStmt, WhileStmt, ForStmt, ReturnStmt, BlockStmt, ExprStmt, SkipStmt, AssertStmt,
     ProbBlockStmt, CausalBlockStmt, VerifyBlockStmt,
@@ -32,6 +32,9 @@ from src.ast import (
 )
 import os
 from src.lexer import TokenType
+
+# Effect marker for sampling operations
+SAMPLE_EFFECT = PrimitiveType('sample')
 
 
 
@@ -98,6 +101,8 @@ class ConstraintGenerator:
         self.env = Env()
         self.constraints: List[tuple] = []  # (t1, t2, node)
         self.current_return_type: Optional[Type] = None
+        self.current_effect: Optional[Type] = None  # None for top-level; inside functions, a TypeVar representing effect
+        self.sample_effect = SAMPLE_EFFECT  # concrete effect marker
         self.builtins = {
             # Simple builtins with exact types
             'sqrt': FunctionType([REAL_TYPE], REAL_TYPE),
@@ -113,6 +118,10 @@ class ConstraintGenerator:
             'abs': FunctionType([INT_TYPE], INT_TYPE),  # simplified; real overload not handled
             'len': FunctionType([TypeName('array')], INT_TYPE),  # placeholder; actual will be generic
             # Polymorphic builtins we'll handle specially in inference: println, print, int, real, char, string, bytes
+            # Distribution builtins
+            'bernoulli': FunctionType([REAL_TYPE], DistType(BOOL_TYPE)),
+            'normal': FunctionType([REAL_TYPE, REAL_TYPE], DistType(REAL_TYPE)),
+            'uniform': FunctionType([INT_TYPE, INT_TYPE], DistType(INT_TYPE)),
         }
         # Special builtins that accept any arguments
         self.dynamic_builtins = {'println', 'print', 'int', 'real', 'char', 'string', 'bytes'}
@@ -205,15 +214,18 @@ class ConstraintGenerator:
             return_type = self.resolve_type(decl.return_type)
         else:
             return_type = VOID_TYPE
-        # Create function type
-        func_type = FunctionType(param_types, return_type)
+        # Create function type with an effect variable (to be determined by body)
+        func_effect_var = TypeVar(fresh_type_var(), is_effect=True)
+        func_type = FunctionType(param_types, return_type, func_effect_var)
         # Generalize at top-level: quantify any free vars in func_type not in env
         scheme = self.generalize(func_type, self.env)
         self.env.extend(decl.name, scheme)
 
         # Type-check body in extended env with parameters
         old_return = self.current_return_type
+        old_effect = self.current_effect
         self.current_return_type = return_type
+        self.current_effect = func_effect_var
         body_env = Env(parent=self.env)
         for param, p_type in zip(decl.params, param_types):
             body_env.extend(param.name, TypeScheme([], p_type))
@@ -230,6 +242,7 @@ class ConstraintGenerator:
         finally:
             self.env = old_env
             self.current_return_type = old_return
+            self.current_effect = old_effect
 
     def unify(self, node, t1, t2):
         """Unify two types, applying current substitution implicitly."""
@@ -492,9 +505,31 @@ class ConstraintGenerator:
             self.unify(expr, then_type, result_type)
             return result_type
 
-        # ProbExpr and SampleExpr are not implemented in MVP
-        elif isinstance(expr, (ProbExpr, SampleExpr)):
-            raise TypeCheckError("Probabilistic expressions not yet supported", expr)
+        elif isinstance(expr, ProbExpr):
+            # "id ~ dist" yields the distribution itself of type Dist[T]
+            dist_type = self.infer_expr(expr.distribution)
+            elem_var = TypeVar(fresh_type_var())
+            self.unify(expr, dist_type, DistType(elem_var))
+            return DistType(elem_var)
+
+        elif isinstance(expr, SampleExpr):
+            # "sample(dist)" extracts a value from the distribution
+            dist_type = self.infer_expr(expr.distribution_expr)
+            elem_var = TypeVar(fresh_type_var())
+            self.unify(expr, dist_type, DistType(elem_var))
+            # Sampling introduces an effect: unify current effect with sample_effect if inside a function
+            if self.current_effect is not None:
+                self.unify(expr, self.current_effect, self.sample_effect)
+            return elem_var
+
+        elif isinstance(expr, GivenExpr):
+            # "dist given (condition)" yields a conditional distribution
+            dist_type = self.infer_expr(expr.dist)
+            elem_var = TypeVar(fresh_type_var())
+            self.unify(expr, dist_type, DistType(elem_var))
+            cond_type = self.infer_expr(expr.condition)
+            self.unify(expr, cond_type, BOOL_TYPE)
+            return DistType(elem_var)
 
         else:
             raise TypeCheckError(f"Unsupported expression type: {type(expr).__name__}", expr)
@@ -569,6 +604,9 @@ class ConstraintGenerator:
             raise TypeCheckError(f"Function expects {len(callee_type.param_types)} arguments, got {len(arg_types)}", stmt)
         for p_type, a_type in zip(callee_type.param_types, arg_types):
             self.unify(stmt, a_type, p_type)
+        # Effect propagation: if callee has an effect and we are inside a function, unify caller's effect with callee's effect
+        if callee_type.effect is not None and self.current_effect is not None:
+            self.unify(stmt, self.current_effect, callee_type.effect)
         return callee_type.return_type
 
     def infer_if_stmt(self, stmt: IfStmt):
