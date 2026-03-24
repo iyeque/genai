@@ -179,15 +179,18 @@ class Interpreter:
             raise InterpreterError(f"No eval method for {type(node).__name__}")
 
     def eval_Program(self, program: Program):
-        # First pass: register types and function declarations (for forward refs)
+        # First pass: handle top-level declarations.
+        # For procs, register a placeholder without evaluating body yet.
+        # For other declarations (var, const, type), evaluate now to define them.
         for decl in program.declarations:
-            if isinstance(decl, TypeDeclStmt):
-                self.eval_type_decl(decl)
-            elif isinstance(decl, ProcDeclStmt):
+            if isinstance(decl, ProcDeclStmt):
                 # Register function with a placeholder that will be filled later
                 self.current_env.define_function(decl.name, self._make_proc_function(decl))
+            else:
+                # Evaluate var/const/type declarations immediately
+                self.eval(decl)
 
-        # Second pass: evaluate top-level statements (including var/const init and function calls)
+        # Second pass: evaluate top-level statements (including any remaining statements)
         result = None
         for stmt in program.statements:
             result = self.eval(stmt)
