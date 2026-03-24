@@ -124,7 +124,7 @@ class ConstraintGenerator:
             'uniform': FunctionType([INT_TYPE, INT_TYPE], DistType(INT_TYPE)),
         }
         # Special builtins that accept any arguments
-        self.dynamic_builtins = {'println', 'print', 'int', 'real', 'char', 'string', 'bytes'}
+        self.dynamic_builtins = {'println', 'print', 'int', 'real', 'char', 'string', 'bytes', 'sample'}
         # Add primitive types to env
         for name, typ in [('int', INT_TYPE), ('real', REAL_TYPE), ('bool', BOOL_TYPE),
                           ('char', CHAR_TYPE), ('string', STRING_TYPE), ('void', VOID_TYPE)]:
