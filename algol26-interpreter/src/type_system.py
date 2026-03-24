@@ -136,6 +136,26 @@ class BuiltinType(Type):
         return hash((self.name, 'builtin'))
 
 @dataclass(frozen=True)
+class DistType(Type):
+    """Distribution over a given element type."""
+    element_type: Type
+
+    def substitute(self, subst: 'Substitution') -> 'Type':
+        return DistType(self.element_type.substitute(subst))
+
+    def free_vars(self) -> Set['TypeVar']:
+        return self.element_type.free_vars()
+
+    def __str__(self):
+        return f"Dist[{self.element_type}]"
+
+    def __repr__(self):
+        return f"DistType({self.element_type})"
+
+    def __hash__(self):
+        return hash(('dist', self.element_type))
+
+@dataclass(frozen=True)
 class FunctionType(Type):
     param_types: List[Type]
     return_type: Type
