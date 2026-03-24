@@ -273,6 +273,9 @@ class Parser:
         elif t == TokenType.EXPORT:
             return self.parse_export_stmt()
         elif t in (TokenType.IDENT, TokenType.PRINTLN):
+            # Assignment: identifier ':=' expression
+            if t == TokenType.IDENT and self.peek() and self.peek().type == TokenType.ASSIGN:
+                return self.parse_assignment()
             # Probabilistic binding: identifier ':' expression
             if t == TokenType.IDENT and self.peek() and self.peek().type == TokenType.COLON:
                 return self.parse_prob_bind()
@@ -416,6 +419,17 @@ class Parser:
         dist_expr = self.parse_expression()
         self.expect(TokenType.SEMI)
         return ProbBindStmt(identifier=name, distribution=dist_expr)
+
+    def parse_assignment(self) -> AssignmentStmt:
+        # Assignment with identifier target: identifier ':=' expression ';'
+        token = self.current_token
+        name = token.value
+        self.advance()  # consume IDENT
+        self.expect(TokenType.ASSIGN)
+        value_expr = self.parse_expression()
+        self.expect(TokenType.SEMI)
+        target = IdentifierExpr(name=name, token=token)
+        return AssignmentStmt(target=target, value=value_expr)
 
     def parse_prob_block(self) -> ProbBlockStmt:
         self.expect(TokenType.PROB)
