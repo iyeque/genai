@@ -13,7 +13,8 @@ from src.ast import (
     ParenExpr,
     VarDeclStmt, ConstDeclStmt, TypeDeclStmt, AssignmentStmt, ProcCallStmt,
     IfStmt, WhileStmt, ForStmt, ReturnStmt, BlockStmt, ExprStmt, SkipStmt, AssertStmt,
-    ProcDeclStmt, Param, ProbBlockStmt, CausalBlockStmt, VerifyBlockStmt,
+    ProcDeclStmt, Param, ProbBindStmt, ProbExpr, SampleExpr, GivenExpr,
+    ProbBlockStmt, CausalBlockStmt, VerifyBlockStmt,
     Token,
 )
 from src.builtins import Builtins
@@ -24,6 +25,67 @@ from src.lexer import TokenType
 from src.type_system import PrimitiveType, ArrayType, RecordType
 from typing import Any, List, Dict, Optional, Union
 import math
+from src.distributions import Distribution
+
+
+class ProbModel(Distribution):
+    """A distribution defined by a prob block: executes the block to sample."""
+    def __init__(self, statements: List[Stmt], closure_env: Environment):
+        self.statements = statements
+        self.closure_env = closure_env
+
+    def sample(self) -> Any:
+        # Create a fresh environment for this sample, inheriting from closure
+        sample_env = Environment(parent=self.closure_env)
+        # Use a temporary interpreter to execute the block
+        # We'll create a lightweight evaluator that can run statements and expressions
+        # For simplicity, reuse Interpreter but override its global environment? Actually we can just set current_env.
+        # We'll create a new Interpreter instance with the same base_path, and set its global_env to sample_env? But Interpreter uses global_env for top-level.
+        # Simpler: directly evaluate statements using the interpreter's methods with a custom env.
+        # We'll create a new Interpreter that shares builtins etc, but we set its current_env to sample_env.
+        # However, we don't have direct access to private methods. We could copy the interpreter but that's heavy.
+        # Instead, we'll define a helper within this method that evaluates a statement/expr using the closure's interpreter's logic but with our sample_env.
+        # We can temporarily replace the interpreter's env? Not thread safe.
+        # Let's instead create a fresh Interpreter instance and pre-populate its global environment with values from closure? That is complex.
+        # Simpler approach: The prob block evaluation can be done by reusing the existing interpreter's eval methods but by temporarily swapping its current_env.
+        # We'll get a reference to the interpreter instance that created this ProbModel? Not stored.
+        # Hmm, we need a way to evaluate ALGOL 26 AST nodes with an environment. We could duplicate the evaluation code here, but that's messy.
+        #
+        # Alternative design: Instead of separate ProbModel, we can store a closure that directly samples by calling an interpreter function.
+        # We can store a lambda that does the sampling using the same interpreter by temporarily pushing a new environment onto a stack. That requires the interpreter's cooperation.
+        #
+        # Given time constraints, let's simplify: The prob block is evaluated immediately when `sample` is called by using a fresh interpreter that has access to the closure's global values. We can pass a dict of the closure's global environment values to the new interpreter.
+        # The closure_env is an Environment object. We can extract its vars/consts/functions and define them in a new Environment as top-level.
+        # But we need to also have access to builtins. The Interpreter's __init__ sets up global_env with builtins. Good.
+        # So we'll create a new Interpreter(base_path=os.getcwd()) and then manually copy closure_env's bindings into its global_env.
+        #
+        # However, the closure_env may be a nested environment, not just globals. The prob block can capture locals from surrounding scope? In ALGOL 26, nested functions can capture. But for now, only top-level prob blocks are likely. So closure_env is likely the global environment of the interpreter that created the ProbModel.
+        # We can store that environment's dictionaries and set as the new interpreter's global_env.vars, consts, functions.
+        # Let's do that.
+        #
+        from src.interpreter import Interpreter  # circular? We're inside interpreter.py. Can't.
+        # Oops, we are inside interpreter.py, can't import Interpreter. But we can create a new interpreter by calling Interpreter's constructor, we are in same module so we can reference the class name directly.
+        # We'll define a helper function that creates a new interpreter with the closure environment's contents.
+        new_interp = Interpreter(base_path=os.getcwd())
+        # Copy closure environment's contents into new_interp.global_env
+        # closure_env.vars, consts, functions, types? We'll copy only the mutable bindings and functions.
+        new_interp.global_env.vars.update(self.closure_env.vars)
+        new_interp.global_env.consts.update(self.closure_env.consts)
+        new_interp.global_env.functions.update(self.closure_env.functions)
+        new_interp.global_env.types.update(self.closure_env.types)
+        # For nested scopes, we only need to capture the top-level closure, so ok.
+        # Execute block statements in new_interp
+        result = None
+        for stmt in self.statements:
+            if isinstance(stmt, ExprStmt):
+                # The last expression's value is the result
+                result = new_interp.eval(stmt.expr)
+            else:
+                new_interp.eval(stmt)
+        return result
+
+    def __repr__(self):
+        return f"ProbModel({self.statements})"
 
 
 class InterpreterError(Exception):
@@ -330,6 +392,15 @@ class Interpreter:
             # For MVP, we'll just print a warning
             print(f"VERIFICATION FAILED: {stmt.message or ''}")
 
+    def eval_ProbBindStmt(self, stmt: ProbBindStmt):
+        # Evaluate the distribution expression to a Distribution object
+        dist = self.eval(stmt.distribution)
+        if not isinstance(dist, Distribution):
+            raise InterpreterError(f"Expected distribution in binding, got {type(dist)}", stmt)
+        # Sample from the distribution and bind the identifier in the current environment
+        sample_val = dist.sample()
+        self.current_env.define(stmt.identifier, sample_val, is_const=False)
+
     # Expressions
 
     def eval_ImportStmt(self, stmt: ImportStmt):
@@ -533,6 +604,20 @@ class Interpreter:
 
     def eval_ParenExpr(self, expr: ParenExpr):
         return self.eval(expr.expr)
+
+    def eval_ProbBlockExpr(self, expr: ProbBlockExpr) -> Distribution:
+        # Return a ProbModel representing the probabilistic block, capturing current environment as closure
+        return ProbModel(expr.statements, self.current_env)
+
+    def eval_SampleExpr(self, expr: SampleExpr) -> Any:
+        dist = self.eval(expr.distribution_expr)
+        if not isinstance(dist, Distribution):
+            raise InterpreterError(f"Cannot sample from non-distribution: {type(dist)}", expr)
+        return dist.sample()
+
+    def eval_GivenExpr(self, expr: GivenExpr) -> Distribution:
+        # MVP: not implemented
+        raise NotImplementedError("Conditional distributions (given) are not yet supported")
 
     # Utility
     def default_value(self, type_obj) -> Any:
