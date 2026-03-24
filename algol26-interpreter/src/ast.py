@@ -309,6 +309,16 @@ class VerifyBlockStmt(Stmt):
 
 
 @dataclass
+class ProbBindStmt(Stmt):
+    """Inside a prob block: binds an identifier to a distribution."""
+    identifier: str
+    distribution: Expr
+
+    def __post_init__(self):
+        pass
+
+
+@dataclass
 class ImportStmt(Stmt):
     module_name: str
     alias: Optional[str] = None

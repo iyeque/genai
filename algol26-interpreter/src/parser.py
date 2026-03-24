@@ -13,7 +13,7 @@ from src.ast import (
     ParenExpr, TernaryExpr, ProbExpr, SampleExpr,
     VarDeclStmt, ConstDeclStmt, TypeDeclStmt, AssignmentStmt, ProcCallStmt,
     IfStmt, WhileStmt, ForStmt, ReturnStmt, BlockStmt, ExprStmt, SkipStmt, AssertStmt,
-    ProbBlockStmt, CausalBlockStmt, VerifyBlockStmt,
+    ProbBlockStmt, CausalBlockStmt, VerifyBlockStmt, ProbBindStmt,
     ProbBlockExpr, GivenExpr,
     ImportStmt, ExportStmt, ModuleDeclStmt,
     ProcDeclStmt, Param,
@@ -262,8 +262,6 @@ class Parser:
             return SkipStmt()
         elif t == TokenType.ASSERT:
             return self.parse_assert_stmt()
-        elif t == TokenType.PROB:
-            return self.parse_prob_block()
         elif t == TokenType.CAUSAL:
             return self.parse_causal_block()
         elif t == TokenType.VERIFY:
@@ -275,6 +273,9 @@ class Parser:
         elif t == TokenType.EXPORT:
             return self.parse_export_stmt()
         elif t in (TokenType.IDENT, TokenType.PRINTLN):
+            # Probabilistic binding: identifier ':' expression
+            if t == TokenType.IDENT and self.peek() and self.peek().type == TokenType.COLON:
+                return self.parse_prob_bind()
             return self.parse_expression_statement()
         elif t == TokenType.PROC:
             raise self.error("Unexpected proc keyword in statement context (proc declarations are top-level only)")
@@ -407,6 +408,15 @@ class Parser:
         self.expect(TokenType.SEMI)
         return AssertStmt(condition=condition)
 
+    def parse_prob_bind(self) -> ProbBindStmt:
+        # Syntax: identifier ':' expression ';'
+        name = self.current_token.value
+        self.advance()  # consume IDENT
+        self.expect(TokenType.COLON)
+        dist_expr = self.parse_expression()
+        self.expect(TokenType.SEMI)
+        return ProbBindStmt(identifier=name, distribution=dist_expr)
+
     def parse_prob_block(self) -> ProbBlockStmt:
         self.expect(TokenType.PROB)
         statements = self._parse_brace_block()
@@ -480,6 +490,12 @@ class Parser:
             token = self.current_token
             self.advance()
             return LiteralExpr(value=None, token=token)
+
+        # Probabilistic block expression
+        if t == TokenType.PROB:
+            self.advance()
+            statements = self._parse_brace_block()
+            return ProbBlockExpr(statements=statements)
 
         # Identifier or record constructor
         if t in (TokenType.IDENT, TokenType.PRINTLN):
