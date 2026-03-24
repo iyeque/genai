@@ -26,7 +26,7 @@ from src.ast import (
     ParenExpr, TernaryExpr, ProbExpr, SampleExpr, GivenExpr, ProbBlockExpr,
     VarDeclStmt, ConstDeclStmt, TypeDeclStmt, AssignmentStmt, ProcCallStmt,
     IfStmt, WhileStmt, ForStmt, ReturnStmt, BlockStmt, ExprStmt, SkipStmt, AssertStmt,
-    ProbBlockStmt, CausalBlockStmt, VerifyBlockStmt,
+    ProbBlockStmt, CausalBlockStmt, VerifyBlockStmt, ProbBindStmt,
     ImportStmt, ExportStmt, ModuleDeclStmt,
     ProcDeclStmt, Param,
 )
@@ -577,6 +577,14 @@ class ConstraintGenerator:
             else:
                 for s in stmt.statements:
                     self.infer_stmt(s)
+        elif isinstance(stmt, ProbBindStmt):
+            # Binding inside a prob block: identifier ':' distribution_expr ';'
+            dist_type = self.infer_expr(stmt.distribution)
+            if not isinstance(dist_type, DistType):
+                raise TypeCheckError(f"Expected distribution in binding, got {dist_type}", stmt)
+            # The identifier gets the element type of the distribution
+            scheme = self.generalize(dist_type.element_type, self.env)
+            self.env.extend(stmt.identifier, scheme)
         elif isinstance(stmt, ImportStmt):
             self.process_import(stmt)
         elif isinstance(stmt, ExportStmt):
