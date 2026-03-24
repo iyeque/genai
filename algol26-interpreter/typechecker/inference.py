@@ -23,7 +23,7 @@ from src.ast import (
     ASTNode, Expr, Stmt,
     LiteralExpr, IdentifierExpr, BinaryOpExpr, UnaryOpExpr, CallExpr,
     ArrayIndexExpr, RecordAccessExpr, ArrayConstructorExpr, RecordConstructorExpr,
-    ParenExpr, TernaryExpr, ProbExpr, SampleExpr, GivenExpr,
+    ParenExpr, TernaryExpr, ProbExpr, SampleExpr, GivenExpr, ProbBlockExpr,
     VarDeclStmt, ConstDeclStmt, TypeDeclStmt, AssignmentStmt, ProcCallStmt,
     IfStmt, WhileStmt, ForStmt, ReturnStmt, BlockStmt, ExprStmt, SkipStmt, AssertStmt,
     ProbBlockStmt, CausalBlockStmt, VerifyBlockStmt,
@@ -529,6 +529,14 @@ class ConstraintGenerator:
             self.unify(expr, dist_type, DistType(elem_var))
             cond_type = self.infer_expr(expr.condition)
             self.unify(expr, cond_type, BOOL_TYPE)
+            return DistType(elem_var)
+
+        elif isinstance(expr, ProbBlockExpr):
+            # A prob block defines a distribution with fresh element type.
+            # We don't yet type-check the block's internals for probabilistic semantics
+            # But we could optionally infer the return expression type by creating a temporary env.
+            # MVP: return Dist[T] with fresh T.
+            elem_var = TypeVar(fresh_type_var())
             return DistType(elem_var)
 
         else:
