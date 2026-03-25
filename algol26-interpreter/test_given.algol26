@@ -1,0 +1,8 @@
+begin
+  var d := bernoulli(0.6) given (_sample = true);
+  var s := sample(d);
+  println("Sampled from conditioned Bernoulli: ", s);
+  var d2 := uniform(1, 10) given (_sample > 5);
+  var s2 := sample(d2);
+  println("Sampled from conditioned Uniform: ", s2);
+end

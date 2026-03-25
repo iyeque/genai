@@ -3,20 +3,29 @@ Probabilistic Programming: Distribution Types and Operations
 
 Provides runtime representation of distributions and sampling primitives.
 Supports:
-- Discrete: Bernoulli
-- Continuous (stub): Normal, Uniform
+- Discrete: Bernoulli, Uniform (int)
+- Continuous (stub): Normal, Uniform (float)
 - Conditioning via rejection sampling (MVP)
+- Exact inference via enumeration for finite discrete distributions
 """
 
 import random
 import math
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Optional, List, Dict, Iterable
 
 
 class Distribution:
     """Base class for all distributions."""
     def sample(self) -> Any:
         raise NotImplementedError()
+
+    def get_support(self) -> Iterable[Any]:
+        """Return an iterable of all possible values (for finite discrete distributions)."""
+        raise NotImplementedError("This distribution does not have a finite support enumeration")
+
+    def pmf(self, value: Any) -> float:
+        """Return the probability mass for a given value (for discrete distributions)."""
+        raise NotImplementedError("PMF not defined for this distribution")
 
     def __repr__(self):
         return f"<{self.__class__.__name__}>"
@@ -31,6 +40,12 @@ class Bernoulli(Distribution):
 
     def sample(self) -> bool:
         return random.random() < self.p
+
+    def get_support(self) -> List[bool]:
+        return [True, False]
+
+    def pmf(self, value: bool) -> float:
+        return self.p if value else 1.0 - self.p
 
     def __repr__(self):
         return f"Bernoulli(p={self.p})"
@@ -88,6 +103,19 @@ class Uniform(Distribution):
         else:
             return random.uniform(self.low, self.high)
 
+    def get_support(self) -> List[int]:
+        if not self.discrete:
+            raise NotImplementedError("Continuous uniform does not have finite support")
+        return list(range(self.low, self.high))
+
+    def pmf(self, value: int) -> float:
+        if not self.discrete:
+            raise NotImplementedError("PMF not defined for continuous uniform")
+        if self.low <= value < self.high:
+            return 1.0 / (self.high - self.low)
+        else:
+            return 0.0
+
     def __repr__(self):
         if self.discrete:
             return f"UniformInt([{self.low}, {self.high}))"
@@ -113,6 +141,38 @@ class Conditional(Distribution):
 
     def __repr__(self):
         return f"Conditional({self.base_dist} | condition)"
+
+
+class Categorical(Distribution):
+    """Discrete distribution over a finite set of values with given probabilities."""
+    def __init__(self, prob_dict: Dict[Any, float]):
+        """
+        prob_dict: dict mapping value -> probability (should sum to 1).
+        """
+        total = sum(prob_dict.values())
+        if abs(total - 1.0) > 1e-10:
+            raise ValueError(f"Probabilities must sum to 1, got {total}")
+        self.values = list(prob_dict.keys())
+        self.probs = [prob_dict[v] for v in self.values]
+        # Precompute cumulative distribution for efficient sampling
+        self.cumdist = []
+        cum = 0.0
+        for p in self.probs:
+            cum += p
+            self.cumdist.append(cum)
+        # Ensure last is exactly 1
+        self.cumdist[-1] = 1.0
+
+    def sample(self) -> Any:
+        r = random.random()
+        # binary search could be used, but for small support linear is fine
+        for i, cum in enumerate(self.cumdist):
+            if r < cum:
+                return self.values[i]
+        return self.values[-1]  # fallback
+
+    def __repr__(self):
+        return f"Categorical({dict(zip(self.values, self.probs))})"
 
 
 def enumerate_distribution(dist: Distribution, num_samples: int = 1000) -> dict:

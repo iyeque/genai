@@ -15,10 +15,13 @@ from typechecker.typecheck import typecheck_program, TypeCheckError as TCError
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python main.py <source_file>")
+        print("Usage: python main.py <source_file> [--verify]")
         sys.exit(1)
 
     filename = sys.argv[1]
+    # Check for --verify flag
+    verify_mode = '--verify' in sys.argv[2:]
+
     try:
         with open(filename, 'r', encoding='utf-8') as f:
             source = f.read()
@@ -43,7 +46,7 @@ def main():
             print(f"Type error: {e}")
             sys.exit(1)
 
-        interpreter = Interpreter()
+        interpreter = Interpreter(verify_mode=verify_mode)
         result = interpreter.eval(ast)
     except InterpreterError as e:
         print(f"Runtime error: {e}")

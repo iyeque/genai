@@ -1,0 +1,7 @@
+begin
+  causal {
+    var x := 5;
+    var y := x * 2;
+    println("Causal block executed: x=", x, " y=", y);
+  }
+end

@@ -407,6 +407,9 @@ def unify(t1: Type, t2: Type) -> Substitution:
             subst = compose_subst(s, subst)
         return subst
 
+    if isinstance(t1, DistType) and isinstance(t2, DistType):
+        return unify(t1.element_type, t2.element_type)
+
     if isinstance(t1, PrimitiveType) and isinstance(t2, PrimitiveType):
         if t1.name == t2.name:
             return Substitution()

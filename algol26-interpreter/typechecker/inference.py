@@ -124,7 +124,7 @@ class ConstraintGenerator:
             'uniform': FunctionType([INT_TYPE, INT_TYPE], DistType(INT_TYPE)),
         }
         # Special builtins that accept any arguments
-        self.dynamic_builtins = {'println', 'print', 'int', 'real', 'char', 'string', 'bytes', 'sample'}
+        self.dynamic_builtins = {'println', 'print', 'int', 'real', 'char', 'string', 'bytes', 'sample', 'infer'}
         # Add primitive types to env
         for name, typ in [('int', INT_TYPE), ('real', REAL_TYPE), ('bool', BOOL_TYPE),
                           ('char', CHAR_TYPE), ('string', STRING_TYPE), ('void', VOID_TYPE)]:
@@ -527,8 +527,18 @@ class ConstraintGenerator:
             dist_type = self.infer_expr(expr.dist)
             elem_var = TypeVar(fresh_type_var())
             self.unify(expr, dist_type, DistType(elem_var))
-            cond_type = self.infer_expr(expr.condition)
-            self.unify(expr, cond_type, BOOL_TYPE)
+            # The condition expression has access to a special identifier '_sample'
+            # which is bound to the element type of the distribution. We temporarily
+            # extend the environment with this binding.
+            old_env = self.env
+            # Create a new environment layer with '_sample' bound to the element type
+            self.env = Env(parent=old_env)
+            self.env.extend('_sample', TypeScheme([], elem_var))
+            try:
+                cond_type = self.infer_expr(expr.condition)
+                self.unify(expr, cond_type, BOOL_TYPE)
+            finally:
+                self.env = old_env
             return DistType(elem_var)
 
         elif isinstance(expr, ProbBlockExpr):

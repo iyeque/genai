@@ -1,0 +1,5 @@
+begin
+  verify true "This should pass";
+  verify false "This should fail in verify mode";
+  println("End of verify tests");
+end

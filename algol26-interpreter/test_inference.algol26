@@ -1,0 +1,22 @@
+begin
+  // Test exact inference on Bernoulli conditioned on true
+  var d := bernoulli(0.6);
+  var cond_d := infer(d given (_sample = true));
+  var s := sample(cond_d);
+  println("Sample from conditioned Bernoulli (should be True): ", s);
+
+  // Test exact inference on Uniform integer conditioned on >5
+  var d2 := uniform(1, 10);
+  var cond_d2 := infer(d2 given (_sample > 5));
+  // Sample multiple times to show distribution uniformity (should be 6-9)
+  var i := 1;
+  print("Samples from uniform(1,10) given >5 (should be 6-9): ");
+  while i <= 10 do
+    begin
+      var si := sample(cond_d2);
+      print(si, " ");
+      i := i + 1;
+    end
+  od
+  println();
+end

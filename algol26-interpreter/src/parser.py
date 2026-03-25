@@ -482,6 +482,11 @@ class Parser:
                     self.expect(TokenType.RBRACKET)
                     expr = ArrayIndexExpr(array=expr, index=index)
                 continue
+            elif token.type == TokenType.GIVEN:
+                # Handle 'given' as a binary operator that constructs GivenExpr
+                right = self.parse_expression(next_min)
+                expr = GivenExpr(dist=expr, condition=right)
+                continue
             else:
                 right = self.parse_expression(next_min)
                 expr = BinaryOpExpr(left=expr, op=token, right=right)

@@ -25,7 +25,7 @@ from src.lexer import TokenType
 from src.type_system import PrimitiveType, ArrayType, RecordType
 from typing import Any, List, Dict, Optional, Union
 import math
-from src.distributions import Distribution
+from src.distributions import Distribution, Conditional
 
 
 class ProbModel(Distribution):
@@ -158,10 +158,11 @@ class Environment:
 
 
 class Interpreter:
-    def __init__(self, base_path=None):
+    def __init__(self, base_path=None, verify_mode=False):
         self.base_path = base_path or os.getcwd()
         self.global_env = Environment()
         self.current_env = self.global_env
+        self.verify_mode = verify_mode
         self._setup_builtins()
 
     def _setup_builtins(self):
@@ -380,20 +381,25 @@ class Interpreter:
             self.eval(s)
 
     def eval_CausalBlockStmt(self, stmt: CausalBlockStmt):
-        # MVP stub: execute statements
+        # MVP stub: execute statements.
+        # TODO: Establish causal dependencies.
+        # The causal block should define a causal model where assignments represent
+        # interventions or structural equations. Future work: support do-calculus,
+        # counterfactual reasoning, and causal inference by tracking dependencies
+        # between variables expressed within the block.
         for s in stmt.statements:
             self.eval(s)
 
     def eval_VerifyBlockStmt(self, stmt: VerifyBlockStmt):
-        # MVP stub: optionally runtime check? We'll just eval the condition but not enforce
-        # For debugging, we could assert
         condition = self.eval(stmt.condition)
         if not isinstance(condition, bool):
             raise InterpreterError("Verify condition must be boolean")
         if not condition:
-            # In debug mode, we could raise error; in release, ignore
-            # For MVP, we'll just print a warning
-            print(f"VERIFICATION FAILED: {stmt.message or ''}")
+            msg = stmt.message or "Verification failed"
+            if self.verify_mode:
+                raise InterpreterError(f"VERIFICATION FAILED: {msg}")
+            else:
+                print(f"VERIFICATION FAILED: {msg}")
 
     def eval_ProbBindStmt(self, stmt: ProbBindStmt):
         # Evaluate the distribution expression to a Distribution object
@@ -619,8 +625,36 @@ class Interpreter:
         return dist.sample()
 
     def eval_GivenExpr(self, expr: GivenExpr) -> Distribution:
-        # MVP: not implemented
-        raise NotImplementedError("Conditional distributions (given) are not yet supported")
+        """
+        Evaluate a conditional distribution: dist given (condition).
+        Returns a Conditional distribution that applies rejection sampling.
+        The condition expression is evaluated in an environment where the sample value
+        is bound to the identifier '_sample'. The condition must evaluate to a boolean.
+        """
+        base_dist = self.eval(expr.dist)
+        if not isinstance(base_dist, Distribution):
+            raise InterpreterError(f"Expected a distribution in 'given', got {type(base_dist).__name__}")
+
+        # Capture the environment at the point of definition (lexical closure)
+        closure_env = self.current_env
+
+        # Define the condition function that will be used by Conditional
+        def condition_fn(candidate):
+            # Save current interpreter environment
+            old_env = self.current_env
+            # Create a new environment as a child of the closure, with _sample bound to candidate
+            self.current_env = Environment(parent=closure_env)
+            self.current_env.define('_sample', candidate, is_const=False)
+            try:
+                result = self.eval(expr.condition)
+                if not isinstance(result, bool):
+                    raise InterpreterError("Condition in 'given' must evaluate to a boolean")
+                return result
+            finally:
+                # Restore the interpreter's previous environment
+                self.current_env = old_env
+
+        return Conditional(base_dist, condition_fn)
 
     # Utility
     def default_value(self, type_obj) -> Any:

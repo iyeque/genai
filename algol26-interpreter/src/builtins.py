@@ -8,7 +8,7 @@ import math
 from typing import Any, List
 
 # Import distribution classes (define in separate module)
-from src.distributions import Bernoulli, Normal, Uniform, Distribution
+from src.distributions import Bernoulli, Normal, Uniform, Distribution, Conditional, Categorical
 
 
 class Builtins:
@@ -134,6 +134,45 @@ class Builtins:
         if isinstance(distribution, (int, float)):
             return distribution
         return 0
+
+    @staticmethod
+    def infer(dist):
+        """
+        Perform exact inference on a conditional distribution if possible.
+        If `dist` is a Conditional and its base distribution has finite discrete support,
+        returns a Categorical distribution representing the exact posterior.
+        Otherwise, returns the original distribution (possibly with a warning).
+        """
+        if not isinstance(dist, Conditional):
+            # Not a conditional, cannot infer
+            return dist
+        base = dist.base_dist
+        # Check if base has get_support and pmf methods
+        if not (hasattr(base, 'get_support') and hasattr(base, 'pmf')):
+            return dist
+        try:
+            support = base.get_support()
+        except NotImplementedError:
+            return dist
+        # Compute unnormalized posterior
+        total = 0.0
+        probs = {}
+        for value in support:
+            try:
+                p_prior = base.pmf(value)
+            except (NotImplementedError, TypeError):
+                p_prior = 0
+            if p_prior <= 0:
+                continue
+            if dist.condition(value):
+                probs[value] = p_prior
+                total += p_prior
+        if total == 0:
+            raise ValueError("Condition has zero probability under the prior distribution")
+        # Normalize
+        for value in probs:
+            probs[value] /= total
+        return Categorical(probs)
 
     # Conversion functions
     @staticmethod
