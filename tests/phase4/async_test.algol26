@@ -1,0 +1,21 @@
+module async_test;
+
+chan numbers: int;
+
+async proc async_producer(n: int) {
+  for i = 1 to n do
+    numbers <- i;
+  done;
+}
+
+async proc async_consumer(times: int) {
+  for _ = 1 to times do
+    let value = <- numbers;
+    println(value);
+  done;
+}
+
+begin
+  spawn async_producer(10);
+  spawn async_consumer(10);
+end.

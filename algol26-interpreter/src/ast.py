@@ -6,10 +6,10 @@ Uses Type objects from src.type_system for type annotations.
 """
 
 from dataclasses import dataclass
-from typing import List, Optional, Union, Any
+from typing import List, Optional, Union, Any, Set, TypeVar
 
 # Import type system; note: type_system imports nothing from ast, so safe.
-from src.type_system import Type, PrimitiveType, ArrayType, RecordType, FunctionType, TypeName
+from src.type_system import Type, PrimitiveType, ArrayType, RecordType, FunctionType, TypeName, Substitution
 
 
 # Base node
@@ -386,3 +386,64 @@ from src.lexer import Token, TokenType
 
 # Forward reference resolution for ProcDeclStmt body type (already fine)
 ProcDeclStmt.__annotations__['body'] = "Union['BlockStmt', 'Expr']"
+
+# ==================== Phase 4: Concurrency and Meta-Cognition ====================
+
+@dataclass
+class ChanDeclStmt(Stmt):
+    """Channel declaration: `chan c: type [capacity];`"""
+    name: str
+    chan_type: Type
+    capacity: Optional[int] = None
+
+@dataclass
+class SendStmt(Stmt):
+    """Send statement: `c <- value;`"""
+    channel: Expr
+    value: Expr
+
+@dataclass
+class ReceiveExpr(Expr):
+    """Receive expression: `<- c`"""
+    channel: Expr
+
+@dataclass
+class Case:
+    """A case in select: case c => stmt (send) or case receive c => stmt (receive)"""
+    channel: Expr
+    is_send: bool
+    stmt: Stmt
+
+@dataclass
+class SelectStmt(Stmt):
+    """Select statement: select { case ...; default => ...; }"""
+    cases: List[Case]
+    default_stmt: Optional[Stmt] = None
+
+@dataclass
+class AsyncProcDeclStmt(Stmt):
+    """Asynchronous procedure: async proc foo(): int { ... }"""
+    name: str
+    params: List[Param]
+    body: Union['BlockStmt', 'Expr']
+    return_type: Optional[Type] = None
+
+@dataclass(frozen=True)
+class TaskType(Type):
+    """Type of an async task: task<T>"""
+    result_type: Type
+
+    def substitute(self, subst: Substitution) -> Type:
+        return TaskType(self.result_type.substitute(subst))
+
+    def free_vars(self) -> Set[TypeVar]:
+        return self.result_type.free_vars()
+
+    def __str__(self):
+        return f"task<{self.result_type}>"
+
+    def __repr__(self):
+        return f"TaskType({self.result_type})"
+
+    def __hash__(self):
+        return hash(('task', self.result_type))

@@ -1,0 +1,32 @@
+chan c1: int[1];
+chan c2: int[1];
+
+// Send a value on c1
+c1 <- 42;
+
+// Select between c1 and c2
+var x: int;
+select {
+    case c1 =>
+        x := <-c1;
+        println(x);
+    case c2 =>
+        x := <-c2;
+        println(x);
+    default =>
+        println("no data");
+}
+
+// Now send on c2 and test again
+c2 <- 99;
+
+select {
+    case c1 =>
+        x := <-c1;
+        println(x);
+    case c2 =>
+        x := <-c2;
+        println(x);
+    default =>
+        println("no data again");
+}

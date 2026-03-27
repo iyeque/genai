@@ -485,3 +485,45 @@ def fresh_row_var() -> RowVar:
 
 # Effect types (lightweight)
 # We can define a polymorphic effect system but MVP: just track effect variable per function. Effects are separate from value types.
+
+# Phase 4: Concurrency types
+
+@dataclass(frozen=True)
+class ChanType(Type):
+    """Type of a channel: chan of T"""
+    element_type: Type
+
+    def substitute(self, subst: 'Substitution') -> 'Type':
+        return ChanType(self.element_type.substitute(subst))
+
+    def free_vars(self) -> Set['TypeVar']:
+        return self.element_type.free_vars()
+
+    def __str__(self):
+        return f"chan {self.element_type}"
+
+    def __repr__(self):
+        return f"ChanType({self.element_type})"
+
+    def __hash__(self):
+        return hash(('chan', self.element_type))
+
+@dataclass(frozen=True)
+class TaskType(Type):
+    """Type of an async task: task<T>"""
+    result_type: Type
+
+    def substitute(self, subst: 'Substitution') -> 'Type':
+        return TaskType(self.result_type.substitute(subst))
+
+    def free_vars(self) -> Set['TypeVar']:
+        return self.result_type.free_vars()
+
+    def __str__(self):
+        return f"task<{self.result_type}>"
+
+    def __repr__(self):
+        return f"TaskType({self.result_type})"
+
+    def __hash__(self):
+        return hash(('task', self.result_type))

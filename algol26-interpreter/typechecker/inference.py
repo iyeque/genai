@@ -17,7 +17,7 @@ from src.type_system import (
     PrimitiveType, TypeName, BuiltinType, DistType, Substitution, UnificationError,
     fresh_type_var, fresh_row_var,
     INT_TYPE, REAL_TYPE, BOOL_TYPE, STRING_TYPE, CHAR_TYPE, VOID_TYPE,
-    apply_subst, compose_subst,
+    apply_subst, compose_subst, ChanType, TaskType
 )
 from src.ast import (
     ASTNode, Expr, Stmt,
@@ -29,6 +29,8 @@ from src.ast import (
     ProbBlockStmt, CausalBlockStmt, VerifyBlockStmt, ProbBindStmt,
     ImportStmt, ExportStmt, ModuleDeclStmt,
     ProcDeclStmt, Param,
+    # Phase 4
+    ChanDeclStmt, SendStmt, ReceiveExpr, SelectStmt, Case, AsyncProcDeclStmt,
 )
 import os
 from src.lexer import TokenType
@@ -283,18 +285,26 @@ class ConstraintGenerator:
                 except Exception as e:
                     raise TypeCheckError(f"Type declaration error: {e}", decl)
 
-        # Second pass: process other declarations (var, const, proc)
+        # Second pass: process other declarations (var, const, chan, proc, async proc)
         for decl in program.declarations:
-            if isinstance(decl, (VarDeclStmt, ConstDeclStmt, ProcDeclStmt)):
-                try:
-                    if isinstance(decl, VarDeclStmt):
-                        self.process_var_decl(decl)
-                    elif isinstance(decl, ConstDeclStmt):
-                        self.process_const_decl(decl)
-                    elif isinstance(decl, ProcDeclStmt):
-                        self.process_proc_decl(decl)
-                except Exception as e:
-                    raise TypeCheckError(f"Declaration error: {e}", decl)
+            try:
+                if isinstance(decl, VarDeclStmt):
+                    self.process_var_decl(decl)
+                elif isinstance(decl, ConstDeclStmt):
+                    self.process_const_decl(decl)
+                elif isinstance(decl, ChanDeclStmt):
+                    # Channel declaration: add to environment as ChanType
+                    self.infer_stmt(decl)
+                elif isinstance(decl, ProcDeclStmt):
+                    self.process_proc_decl(decl)
+                elif isinstance(decl, AsyncProcDeclStmt):
+                    # Handle async procedure declarations using infer_stmt logic
+                    self.infer_stmt(decl)
+                else:
+                    # Other top-level declarations (e.g., type, import/export) may be ignored here
+                    pass
+            except Exception as e:
+                raise TypeCheckError(f"Declaration error: {e}", decl)
 
         # Type-check top-level statements
         for stmt in program.statements:
@@ -549,6 +559,13 @@ class ConstraintGenerator:
             elem_var = TypeVar(fresh_type_var())
             return DistType(elem_var)
 
+        elif isinstance(expr, ReceiveExpr):
+            # Receive from a channel: channel must be ChanType(T); result is T
+            channel_type = self.infer_expr(expr.channel)
+            if not isinstance(channel_type, ChanType):
+                raise TypeCheckError(f"Receive from non-channel: {channel_type}", expr)
+            return channel_type.element_type
+
         else:
             raise TypeCheckError(f"Unsupported expression type: {type(expr).__name__}", expr)
 
@@ -602,6 +619,77 @@ class ConstraintGenerator:
         elif isinstance(stmt, ModuleDeclStmt):
             # Module declaration; could set module name but not needed for typechecking
             pass
+        # Phase 4: Concurrency
+        elif isinstance(stmt, ChanDeclStmt):
+            # chan c: T [capacity];
+            chan_type = ChanType(element_type=self.resolve_type(stmt.chan_type))
+            scheme = self.generalize(chan_type, self.env)
+            self.env.extend(stmt.name, scheme)
+        elif isinstance(stmt, SendStmt):
+            chan_type = self.infer_expr(stmt.channel)
+            value_type = self.infer_expr(stmt.value)
+            if not isinstance(chan_type, ChanType):
+                raise TypeCheckError(f"Send channel must be a channel type, got {chan_type}", stmt)
+            self.unify(stmt, value_type, chan_type.element_type)
+        elif isinstance(stmt, ReceiveExpr):
+            chan_type = self.infer_expr(stmt.channel)
+            if not isinstance(chan_type, ChanType):
+                raise TypeCheckError(f"Receive channel must be a channel type, got {chan_type}", stmt)
+            return chan_type.element_type
+        elif isinstance(stmt, SelectStmt):
+            # Check all cases
+            for case in stmt.cases:
+                chan_type = self.infer_expr(case.channel)
+                if not isinstance(chan_type, ChanType):
+                    raise TypeCheckError(f"Select case channel must be a channel type, got {chan_type}", case)
+                # For a send case, the statement will be typechecked separately; ensure the case statement is valid.
+                self.infer_stmt(case.stmt)
+            if stmt.default_stmt:
+                self.infer_stmt(stmt.default_stmt)
+        elif isinstance(stmt, AsyncProcDeclStmt):
+            # Async procedure: create a task-returning function type
+            param_types = [self.resolve_type(p.type_annot) if p.type_annot else fresh_type_var() for p in stmt.params]
+            # Determine return type inside Task
+            if stmt.return_type:
+                declared_ret = self.resolve_type(stmt.return_type)
+                func_ret = TaskType(declared_ret)
+            else:
+                func_ret = TaskType(VOID_TYPE)
+            func_type = FunctionType(param_types=param_types, return_type=func_ret, effect=None)
+
+            # Prepare body environment with parameters
+            body_env = Env(parent=self.env)
+            for param, p_type in zip(stmt.params, param_types):
+                body_env.extend(param.name, TypeScheme([], p_type))
+            old_env = self.env
+            self.env = body_env
+            try:
+                if isinstance(stmt.body, BlockStmt):
+                    for s in stmt.body.statements:
+                        self.infer_stmt(s)
+                else:
+                    self.infer_expr(stmt.body)
+            finally:
+                self.env = old_env
+
+            scheme = self.generalize(func_type, self.env)
+            self.env.extend(stmt.name, scheme)
+
+        elif isinstance(stmt, SelectStmt):
+            # Type-check select statement: each case channel must be ChanType
+            for case in stmt.cases:
+                ch_type = self.infer_expr(case.channel)
+                if not isinstance(ch_type, ChanType):
+                    raise TypeCheckError(f"Select case channel must be ChanType, got {ch_type}", case.channel)
+                if case.is_send:
+                    # Send case: the statement should be a SendStmt or similar
+                    # For now, just type-check the statement
+                    self.infer_stmt(case.stmt)
+                else:
+                    # Receive case: type-check the statement (which may include a receive)
+                    self.infer_stmt(case.stmt)
+            if stmt.default_stmt:
+                self.infer_stmt(stmt.default_stmt)
         else:
             raise TypeCheckError(f"Unsupported statement type: {type(stmt).__name__}", stmt)
 

@@ -1,0 +1,11 @@
+chan c: int[1];
+
+async proc sender() begin
+    c <- 100;
+end
+
+sender();
+
+var x: int;
+x := <-c;
+println(x);

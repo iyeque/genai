@@ -1,0 +1,19 @@
+chan c: int [10];
+
+async proc producer() = {
+    for i: 1 to 10 do
+        c <- i;
+    od
+}
+
+async proc consumer() = {
+    for i: 1 to 10 do
+        let value = <-c;
+        println("Received: " + value);
+    od
+}
+
+begin
+    spawn consumer();
+    spawn producer();
+end

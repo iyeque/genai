@@ -1,0 +1,23 @@
+chan c: int[4];  // buffered capacity 4
+
+async proc producer(n: int) begin
+    c <- n;
+end
+
+producer(1);
+producer(2);
+producer(3);
+producer(4);  // this will block until a receive happens
+
+var x: int;
+x := <-c;
+println(x);  // should print 1
+
+x := <-c;
+println(x);  // should print 2
+
+x := <-c;
+println(x);  // should print 3
+
+x := <-c;
+println(x);  // should print 4

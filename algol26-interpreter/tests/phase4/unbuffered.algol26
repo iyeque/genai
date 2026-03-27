@@ -1,0 +1,11 @@
+chan c: int;  // unbuffered
+
+async proc sender() begin
+    c <- 1;
+end
+
+sender();
+
+var x: int;
+x := <-c;
+println(x);

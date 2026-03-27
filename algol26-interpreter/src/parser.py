@@ -17,6 +17,7 @@ from src.ast import (
     ProbBlockExpr, GivenExpr,
     ImportStmt, ExportStmt, ModuleDeclStmt,
     ProcDeclStmt, Param,
+    ChanDeclStmt, SendStmt, ReceiveExpr, SelectStmt, AsyncProcDeclStmt,
 )
 from src.type_system import Type, PrimitiveType, ArrayType, RecordType, FunctionType, TypeName, VOID_TYPE
 from typing import List, Optional, Dict, Any
@@ -85,7 +86,8 @@ class Parser:
 
         while not self.match(TokenType.EOF):
             # Determine if declaration or statement
-            if self.current_token.type in (TokenType.VAR, TokenType.CONST, TokenType.TYPE, TokenType.PROC):
+            if self.current_token.type in (TokenType.VAR, TokenType.CONST, TokenType.TYPE, TokenType.PROC, TokenType.CHAN) or \
+               (self.current_token.type == TokenType.ASYNC and self.peek() and self.peek().type == TokenType.PROC):
                 decl = self.parse_declaration()
                 declarations.append(decl)
             else:
@@ -103,8 +105,12 @@ class Parser:
             return self.parse_const_decl()
         elif t == TokenType.TYPE:
             return self.parse_type_decl()
+        elif t == TokenType.CHAN:
+            return self.parse_chan_decl()
         elif t == TokenType.PROC:
             return self.parse_proc_decl()
+        elif t == TokenType.ASYNC:
+            return self.parse_async_proc_decl()
         else:
             raise self.error(f"Unexpected token {t.name} in declaration")
 
@@ -272,6 +278,10 @@ class Parser:
             return self.parse_import_stmt()
         elif t == TokenType.EXPORT:
             return self.parse_export_stmt()
+        elif t == TokenType.CHAN:
+            return self.parse_chan_decl()
+        elif t == TokenType.SELECT:
+            return self.parse_select_stmt()
         elif t in (TokenType.IDENT, TokenType.PRINTLN):
             # Assignment: identifier ':=' expression
             if t == TokenType.IDENT and self.peek() and self.peek().type == TokenType.ASSIGN:
@@ -279,6 +289,9 @@ class Parser:
             # Probabilistic binding: identifier ':' expression
             if t == TokenType.IDENT and self.peek() and self.peek().type == TokenType.COLON:
                 return self.parse_prob_bind()
+            # Send statement: identifier '<- expression
+            if t == TokenType.IDENT and self.peek() and self.peek().type == TokenType.LEFT_ARROW:
+                return self.parse_send_stmt()
             return self.parse_expression_statement()
         elif t == TokenType.PROC:
             raise self.error("Unexpected proc keyword in statement context (proc declarations are top-level only)")
@@ -516,6 +529,12 @@ class Parser:
             statements = self._parse_brace_block()
             return ProbBlockExpr(statements=statements)
 
+        # Receive expression: <- channel
+        if t == TokenType.LEFT_ARROW:
+            self.advance()
+            channel = self.parse_expression()
+            return ReceiveExpr(channel=channel)
+
         # Identifier or record constructor
         if t in (TokenType.IDENT, TokenType.PRINTLN):
             next_tok = self.peek()
@@ -613,3 +632,141 @@ class Parser:
             statements.append(self.parse_statement())
         self.expect(TokenType.RBRACE)
         return statements
+
+    # -------------------- Phase 4: Concurrency Parsing --------------------
+
+    def parse_chan_decl(self) -> ChanDeclStmt:
+        """Parse: chan c: type [capacity];"""
+        self.expect(TokenType.CHAN)
+        name = self.expect(TokenType.IDENT).value
+        self.expect(TokenType.COLON)
+        chan_type = self.parse_type_annotation()
+        capacity = None
+        if self.match(TokenType.LBRACKET):
+            self.advance()
+            capacity = self.expect(TokenType.INTEGER).value
+            self.expect(TokenType.RBRACKET)
+        self.expect(TokenType.SEMI)
+        return ChanDeclStmt(name=name, chan_type=chan_type, capacity=capacity)
+
+    def parse_send_stmt(self) -> SendStmt:
+        """Parse: channel <- value; (called after seeing IDENT and peek LEFT_ARROW)"""
+        channel = self.parse_expression()  # parse the channel expression
+        self.expect(TokenType.LEFT_ARROW)
+        value = self.parse_expression()
+        self.expect(TokenType.SEMI)
+        return SendStmt(channel=channel, value=value)
+
+    def parse_receive_expr(self) -> ReceiveExpr:
+        """Parse: <- channel"""
+        self.expect(TokenType.LEFT_ARROW)
+        channel = self.parse_expression()
+        return ReceiveExpr(channel=channel)
+
+    def parse_select_stmt(self) -> SelectStmt:
+        """Parse: select { case c => stmt; case d => stmt; default => stmt; }"""
+        self.expect(TokenType.SELECT)
+        self.expect(TokenType.LBRACE)
+        cases = []
+        default_stmt = None
+        while not self.match(TokenType.RBRACE):
+            if self.match(TokenType.CASE):
+                self.advance()
+                channel = self.parse_expression()
+                self.expect(TokenType.FAT_ARROW)
+                stmt = self.parse_statement()
+                self.expect(TokenType.SEMI)
+                cases.append(Case(channel=channel, is_send=True, stmt=stmt))
+            elif self.match(TokenType.DEFAULT):
+                self.advance()
+                self.expect(TokenType.FAT_ARROW)
+                default_stmt = self.parse_statement()
+                self.expect(TokenType.SEMI)
+            else:
+                raise self.error(f"Unexpected token {self.current_token.type.name} in select")
+        self.expect(TokenType.RBRACE)
+        return SelectStmt(cases=cases, default_stmt=default_stmt)
+
+    def parse_async_proc_decl(self) -> AsyncProcDeclStmt:
+        """Parse: async proc foo(...): type { ... }"""
+        self.expect(TokenType.ASYNC)
+        self.expect(TokenType.PROC)
+        name = self.expect(TokenType.IDENT).value
+        self.expect(TokenType.LPAREN)
+        params = self.parse_param_list() if not self.match(TokenType.RPAREN) else []
+        self.expect(TokenType.RPAREN)
+        return_type = None
+        if self.match(TokenType.FAT_ARROW):
+            self.advance()
+            return_type = self.parse_type_annotation()
+        body = self.parse_block()
+        return AsyncProcDeclStmt(name=name, params=params, body=body, return_type=return_type)
+
+    # -------------------- Phase 4: Concurrency Parsing --------------------
+
+    def parse_chan_decl(self) -> ChanDeclStmt:
+        """Parse: chan c: type [capacity];"""
+        self.expect(TokenType.CHAN)
+        name = self.expect(TokenType.IDENT).value
+        self.expect(TokenType.COLON)
+        chan_type = self.parse_type_annotation()
+        capacity = None
+        if self.match(TokenType.LBRACKET):
+            self.advance()
+            capacity = self.expect(TokenType.INTEGER).value
+            self.expect(TokenType.RBRACKET)
+        self.expect(TokenType.SEMI)
+        return ChanDeclStmt(name=name, chan_type=chan_type, capacity=capacity)
+
+    def parse_send_stmt(self) -> SendStmt:
+        """Parse: channel <- value; (called after seeing IDENT and peek LEFT_ARROW)"""
+        channel = self.parse_expression()
+        self.expect(TokenType.LEFT_ARROW)
+        value = self.parse_expression()
+        self.expect(TokenType.SEMI)
+        return SendStmt(channel=channel, value=value)
+
+    def parse_receive_expr(self) -> ReceiveExpr:
+        """Parse: <- channel"""
+        self.expect(TokenType.LEFT_ARROW)
+        channel = self.parse_expression()
+        return ReceiveExpr(channel=channel)
+
+    def parse_select_stmt(self) -> SelectStmt:
+        """Parse: select { case c => stmt; case d => stmt; default => stmt; }"""
+        self.expect(TokenType.SELECT)
+        self.expect(TokenType.LBRACE)
+        cases = []
+        default_stmt = None
+        while not self.match(TokenType.RBRACE):
+            if self.match(TokenType.CASE):
+                self.advance()
+                channel = self.parse_expression()
+                self.expect(TokenType.FAT_ARROW)
+                stmt = self.parse_statement()
+                self.expect(TokenType.SEMI)
+                cases.append(Case(channel=channel, is_send=True, stmt=stmt))
+            elif self.match(TokenType.DEFAULT):
+                self.advance()
+                self.expect(TokenType.FAT_ARROW)
+                default_stmt = self.parse_statement()
+                self.expect(TokenType.SEMI)
+            else:
+                raise self.error(f"Unexpected token {self.current_token.type.name} in select")
+        self.expect(TokenType.RBRACE)
+        return SelectStmt(cases=cases, default_stmt=default_stmt)
+
+    def parse_async_proc_decl(self) -> AsyncProcDeclStmt:
+        """Parse: async proc foo(...): type { ... }"""
+        self.expect(TokenType.ASYNC)
+        self.expect(TokenType.PROC)
+        name = self.expect(TokenType.IDENT).value
+        self.expect(TokenType.LPAREN)
+        params = self.parse_param_list() if not self.match(TokenType.RPAREN) else []
+        self.expect(TokenType.RPAREN)
+        return_type = None
+        if self.match(TokenType.FAT_ARROW):
+            self.advance()
+            return_type = self.parse_type_annotation()
+        body = self.parse_block()
+        return AsyncProcDeclStmt(name=name, params=params, body=body, return_type=return_type)

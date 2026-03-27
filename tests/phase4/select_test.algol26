@@ -1,0 +1,28 @@
+module select_test;
+
+chan chan1: int;
+chan chan2: string;
+
+proc sender1() {
+  for i = 1 to 10 do 
+    chan1 <- i;
+  done;
+}
+
+proc sender2() {
+  chan2 <- "hello";
+}
+
+proc select_consumer() {
+  select {
+    case <- chan1 => println("Received from chan1: " + <- chan1);
+    case <- chan2 => println("Received from chan2: " + <- chan2);
+    default => println("No channel ready");
+  };
+}
+
+begin
+  spawn sender1;
+  spawn sender2;
+  select_consumer;
+end.

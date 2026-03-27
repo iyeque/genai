@@ -74,6 +74,7 @@ class TokenType(Enum):
     MOD = auto()
     DIV = auto()
     SKIP = auto()
+    DONE = auto()
     PRINTLN = auto()
     ASSERT = auto()
     # Advanced features
@@ -81,6 +82,7 @@ class TokenType(Enum):
     CAUSAL = auto()
     VERIFY = auto()
     GIVEN = auto()
+    SAMPLE = auto()
     ASSUME = auto()
     REQUIRES = auto()
     ENSURES = auto()
@@ -95,6 +97,7 @@ class TokenType(Enum):
     LOCK = auto()
     ATOMIC = auto()
     CONVERT = auto()
+    LEFT_ARROW = auto()
     # Modules
     MODULE = auto()
     IMPORT = auto()
@@ -227,6 +230,7 @@ class Lexer:
         'not': TokenType.NOT,
         'xor': TokenType.XOR,
         'mod': TokenType.MOD,
+        'done': TokenType.DONE,
         'div': TokenType.DIV,
         'skip': TokenType.SKIP,
         'println': TokenType.PRINTLN,
@@ -236,6 +240,7 @@ class Lexer:
         'causal': TokenType.CAUSAL,
         'verify': TokenType.VERIFY,
         'given': TokenType.GIVEN,
+        'sample': TokenType.SAMPLE,
         'assume': TokenType.ASSUME,
         'requires': TokenType.REQUIRES,
         'ensures': TokenType.ENSURES,
@@ -260,6 +265,7 @@ class Lexer:
     # Multi-character operators (maximal munch - order by length decreasing)
     MULTI_CHAR_OPS = {
         ':=': TokenType.ASSIGN,
+        '<-': TokenType.LEFT_ARROW,
         '=>': TokenType.FAT_ARROW,  # Fat arrow for proc return
         '->': TokenType.ARROW,  # Both map to ARROW for simplicity
         '==': TokenType.EQ,

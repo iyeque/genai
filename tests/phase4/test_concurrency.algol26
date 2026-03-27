@@ -1,0 +1,27 @@
+module concurrency_test;
+
+chan c: int;
+
+proc producer() begin
+  for i: 1 to 5 do
+    c <- i;
+  done;
+end;
+}
+
+proc consumer() begin
+  while true do
+  begin
+    let val = <- c;
+    println(val);
+  end;
+  od;
+    let val = <- c;
+    println(val);
+  done;
+}
+
+begin
+  spawn producer;
+  spawn consumer;
+end.
