@@ -390,14 +390,16 @@ class Interpreter:
         try:
             if stmt.direction == 'to':
                 i = start_val
+                self.current_env.define(stmt.iterator, i, is_const=False)
                 while i <= end_val:
-                    self.current_env.define(stmt.iterator, i, is_const=False)
+                    self.current_env.set(stmt.iterator, i)
                     self.eval(stmt.body)
                     i += step_val
             else:  # downto
                 i = start_val
+                self.current_env.define(stmt.iterator, i, is_const=False)
                 while i >= end_val:
-                    self.current_env.define(stmt.iterator, i, is_const=False)
+                    self.current_env.set(stmt.iterator, i)
                     self.eval(stmt.body)
                     i += step_val  # step should be negative
         finally:

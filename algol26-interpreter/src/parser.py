@@ -530,6 +530,17 @@ class Parser:
             statements = self._parse_brace_block()
             return ProbBlockExpr(statements=statements)
 
+        # Sample expression: sample(dist) or sample dist
+        if t == TokenType.SAMPLE:
+            self.advance()
+            if self.match(TokenType.LPAREN):
+                self.advance()
+                dist = self.parse_expression()
+                self.expect(TokenType.RPAREN)
+            else:
+                dist = self.parse_primary()
+            return SampleExpr(distribution_expr=dist)
+
         # Receive expression: <- channel
         if t == TokenType.LEFT_ARROW:
             self.advance()
