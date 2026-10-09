@@ -18,7 +18,7 @@ from src.ast import (
     ImportStmt, ExportStmt, ModuleDeclStmt,
     ProcDeclStmt, Param,
     ChanDeclStmt, SendStmt, ReceiveExpr, SelectStmt, AsyncProcDeclStmt,
-    Case,
+    Case, SpecClause,
 )
 from src.type_system import Type, PrimitiveType, ArrayType, RecordType, FunctionType, TypeName, VOID_TYPE
 from typing import List, Optional, Dict, Any
@@ -180,7 +180,7 @@ class Parser:
             params = self.parse_param_list() if not self.match(TokenType.RPAREN) else []
             self.expect(TokenType.RPAREN)
             return_type = None
-            if self.match(TokenType.FAT_ARROW):
+            if self.match(TokenType.FAT_ARROW) or self.match(TokenType.ARROW):
                 self.advance()
                 return_type = self.parse_type_annotation()
             ret_type = return_type if return_type is not None else VOID_TYPE
@@ -225,6 +225,23 @@ class Parser:
         # Could support 'ref' keyword before name? BNF doesn't show.
         return Param(name=name, type_annot=type_annot, is_ref=is_ref)
 
+    def parse_spec_clause(self, kind: TokenType) -> SpecClause:
+        """Parse a `requires`/`ensures`/`invariant` clause: <kind> <expr> ["msg"] [;]
+
+        The terminating ';' is optional: a clause ends at the expression,
+        an optional string message, and an optional semicolon. This lets
+        clauses be written one-per-line before a body without semicolons.
+        """
+        self.expect(kind)
+        condition = self.parse_expression()
+        message = None
+        if self.match(TokenType.STRING):
+            message = self.current_token.value
+            self.advance()
+        if self.match(TokenType.SEMI):
+            self.advance()
+        return SpecClause(condition=condition, message=message)
+
     def parse_proc_decl(self) -> ProcDeclStmt:
         token = self.expect(TokenType.PROC)
         name = self.expect(TokenType.IDENT).value
@@ -233,9 +250,17 @@ class Parser:
         self.expect(TokenType.RPAREN)
 
         return_type = None
-        if self.match(TokenType.FAT_ARROW):
+        if self.match(TokenType.FAT_ARROW) or self.match(TokenType.ARROW):
             self.advance()
             return_type = self.parse_type_annotation()
+
+        # Specification clauses (requires / ensures) may appear before the body
+        preconditions = []
+        postconditions = []
+        while self.match(TokenType.REQUIRES):
+            preconditions.append(self.parse_spec_clause(TokenType.REQUIRES))
+        while self.match(TokenType.ENSURES):
+            postconditions.append(self.parse_spec_clause(TokenType.ENSURES))
 
         if self.match(TokenType.EQ):
             self.advance()
@@ -244,7 +269,8 @@ class Parser:
         else:
             body = self.parse_block()
 
-        return ProcDeclStmt(name=name, params=params, return_type=return_type, body=body)
+        return ProcDeclStmt(name=name, params=params, return_type=return_type, body=body,
+                            preconditions=preconditions, postconditions=postconditions)
 
     def parse_statement(self) -> Stmt:
         t = self.current_token.type
@@ -384,10 +410,13 @@ class Parser:
     def parse_while_stmt(self) -> WhileStmt:
         self.expect(TokenType.WHILE)
         condition = self.parse_expression()
+        invariants = []
+        while self.match(TokenType.INVARIANT):
+            invariants.append(self.parse_spec_clause(TokenType.INVARIANT))
         self.expect(TokenType.DO)
         body = self.parse_statement()
         self.expect(TokenType.OD)
-        return WhileStmt(condition=condition, body=body)
+        return WhileStmt(condition=condition, body=body, invariants=invariants)
 
     def parse_for_stmt(self) -> ForStmt:
         self.expect(TokenType.FOR)
@@ -400,9 +429,13 @@ class Parser:
         if self.match(TokenType.STEP):
             self.advance()
             step = self.parse_expression()
+        invariants = []
+        while self.match(TokenType.INVARIANT):
+            invariants.append(self.parse_spec_clause(TokenType.INVARIANT))
         self.expect(TokenType.DO)
         body = self.parse_statement()
-        return ForStmt(iterator=iterator, start=start, end=end, step=step, body=body, direction='to')
+        return ForStmt(iterator=iterator, start=start, end=end, step=step, body=body,
+                       direction='to', invariants=invariants)
 
     def parse_return_stmt(self) -> ReturnStmt:
         if self.match(TokenType.RETURN):
@@ -548,7 +581,7 @@ class Parser:
             return ReceiveExpr(channel=channel)
 
         # Identifier or record constructor
-        if t in (TokenType.IDENT, TokenType.PRINTLN):
+        if t in (TokenType.IDENT, TokenType.PRINTLN, TokenType.RESULT):
             next_tok = self.peek()
             if next_tok and next_tok.type == TokenType.LBRACE:
                 # Record constructor: TypeName { field: expr, ... }
@@ -736,7 +769,7 @@ class Parser:
         params = self.parse_param_list() if not self.match(TokenType.RPAREN) else []
         self.expect(TokenType.RPAREN)
         return_type = None
-        if self.match(TokenType.FAT_ARROW):
+        if self.match(TokenType.FAT_ARROW) or self.match(TokenType.ARROW):
             self.advance()
             return_type = self.parse_type_annotation()
         body = self.parse_block()

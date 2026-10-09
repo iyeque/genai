@@ -254,6 +254,38 @@ class Interpreter:
             self.scheduler.run_all()
         return result
 
+    def _check_spec(self, clauses, kind_label, result=None):
+        """Evaluate specification clauses (requires/ensures/invariant).
+
+        On failure: raise in verify_mode, otherwise print a warning
+        (consistent with `verify` block behaviour). `result`, if given, is
+        bound to the identifier `result` so postconditions can reference it,
+        then restored afterwards.
+        """
+        env = self.current_env
+        restore = None
+        if result is not None:
+            restore = ('result' in env.vars, env.vars.get('result'))
+            env.vars['result'] = result
+        try:
+            for clause in clauses:
+                ok = self.eval(clause.condition)
+                if not isinstance(ok, bool):
+                    raise InterpreterError(f"{kind_label} condition must be boolean")
+                if not ok:
+                    msg = clause.message or f"{kind_label} failed"
+                    if self.verify_mode:
+                        raise InterpreterError(f"{kind_label.upper()} FAILED: {msg}")
+                    else:
+                        print(f"WARNING: {kind_label} failed: {msg}")
+        finally:
+            if result is not None and restore is not None:
+                had, prev = restore
+                if had:
+                    env.vars['result'] = prev
+                else:
+                    env.vars.pop('result', None)
+
     def _make_proc_function(self, decl: ProcDeclStmt):
         """Create a callable function object for a proc declaration."""
         def proc_func(*args):
@@ -270,20 +302,23 @@ class Interpreter:
             for param, arg_val in zip(decl.params, args):
                 self.current_env.define(param.name, arg_val, is_const=False)
 
+            # Preconditions (requires) — checked with parameters bound
+            if decl.preconditions:
+                self._check_spec(decl.preconditions, 'requires')
+
             # Execute body
             try:
                 if isinstance(decl.body, BlockStmt):
                     result = self.eval(decl.body)
                 else:
                     result = self.eval(decl.body)
-                # If proc has return type and body is block, we look for return statements
-                # For expression form, result is the expression value.
-                # We'll treat return from expression body as implicit return.
-                # But if we encountered a ReturnStmt inside, it would have raised ReturnException.
-                # Instead we use exception to break execution.
-                # We'll implement return via exception in block handling.
+                # Postconditions (ensures) — checked with `result` bound
+                if decl.postconditions:
+                    self._check_spec(decl.postconditions, 'ensures', result=result)
                 return result
             except ReturnValue as rv:
+                if decl.postconditions:
+                    self._check_spec(decl.postconditions, 'ensures', result=rv.value)
                 return rv.value
             finally:
                 self.current_env = old_env
@@ -377,6 +412,8 @@ class Interpreter:
                 raise InterpreterError("While condition must be boolean")
             if not condition:
                 break
+            if stmt.invariants:
+                self._check_spec(stmt.invariants, 'invariant')
             self.eval(stmt.body)
 
     def eval_ForStmt(self, stmt: ForStmt):
@@ -393,6 +430,8 @@ class Interpreter:
                 self.current_env.define(stmt.iterator, i, is_const=False)
                 while i <= end_val:
                     self.current_env.set(stmt.iterator, i)
+                    if stmt.invariants:
+                        self._check_spec(stmt.invariants, 'invariant')
                     self.eval(stmt.body)
                     i += step_val
             else:  # downto
@@ -400,6 +439,8 @@ class Interpreter:
                 self.current_env.define(stmt.iterator, i, is_const=False)
                 while i >= end_val:
                     self.current_env.set(stmt.iterator, i)
+                    if stmt.invariants:
+                        self._check_spec(stmt.invariants, 'invariant')
                     self.eval(stmt.body)
                     i += step_val  # step should be negative
         finally:

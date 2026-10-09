@@ -1,0 +1,11 @@
+// Phase 5.1a: precondition violation — warns (or raises in verify mode)
+proc abs_val(x: int) -> int
+  requires x >= 0
+begin
+  return x;
+end
+
+begin
+  println(abs_val(7));    // ok
+  println(abs_val(-3));   // precondition fails -> WARNING (or error in verify mode)
+end

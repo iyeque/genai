@@ -228,9 +228,11 @@ class IfStmt(Stmt):
 class WhileStmt(Stmt):
     condition: Expr
     body: Stmt
+    invariants: List['SpecClause'] = None
 
     def __post_init__(self):
-        pass
+        if self.invariants is None:
+            self.invariants = []
 
 
 @dataclass
@@ -241,9 +243,11 @@ class ForStmt(Stmt):
     step: Optional[Expr]
     body: Stmt
     direction: str
+    invariants: List['SpecClause'] = None
 
     def __post_init__(self):
-        pass
+        if self.invariants is None:
+            self.invariants = []
 
 
 @dataclass
@@ -354,9 +358,21 @@ class ProcDeclStmt(Stmt):
     params: List['Param']
     return_type: Optional[Type]  # None means void
     body: Union['BlockStmt', Expr]
+    preconditions: List['SpecClause'] = None   # requires ...
+    postconditions: List['SpecClause'] = None  # ensures ... (may use `result`)
 
     def __post_init__(self):
-        pass
+        if self.preconditions is None:
+            self.preconditions = []
+        if self.postconditions is None:
+            self.postconditions = []
+
+
+@dataclass
+class SpecClause:
+    """A requires/ensures/invariant specification clause with an optional message."""
+    condition: Expr
+    message: Optional[str] = None
 
 
 @dataclass

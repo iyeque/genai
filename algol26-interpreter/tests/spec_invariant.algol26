@@ -1,0 +1,21 @@
+// Phase 5.1a: loop invariant — checked each iteration
+proc sum_to(n: int) -> int
+  requires n >= 0
+begin
+  var total := 0;
+  var i := 0;
+  while i < n
+    invariant i >= 0
+    invariant total >= 0
+  do
+    begin
+      total := total + i;
+      i := i + 1;
+    end
+  od
+  return total;
+end
+
+begin
+  println(sum_to(10));   // 0+1+...+9 = 45
+end

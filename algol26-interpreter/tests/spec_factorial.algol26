@@ -1,0 +1,15 @@
+// Phase 5.1a: pre/post conditions — passing case
+proc factorial(n: int) -> int
+  requires n >= 0
+  ensures result >= 1
+begin
+  if n == 0 then
+    return 1;
+  fi
+  return n * factorial(n - 1);
+end
+
+begin
+  println(factorial(5));   // 120
+  println(factorial(0));   // 1
+end
