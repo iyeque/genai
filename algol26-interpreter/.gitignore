@@ -1,0 +1,29 @@
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Local ide / editor
+.vscode/
+.idea/
+.DS_Store
+
+# Python virtual environments
+.venv/
+venv/
+env/
+
+# Distribution / build
+dist/
+build/
+*.egg
+
+# Workshop scratch / throwaway test programs
+*.bak
+*.backup
+*_test.py
+test_*.algol26
+*.tmp
