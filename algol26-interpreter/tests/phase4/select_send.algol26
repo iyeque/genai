@@ -1,0 +1,14 @@
+chan c: int[1];
+
+// Fill the channel via select send case
+select {
+    case c <- 7 =>
+        println("sent 7");
+    default =>
+        println("could not send");
+}
+
+// Receive it back
+var x: int;
+x := <-c;
+println(x);

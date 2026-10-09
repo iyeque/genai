@@ -1,0 +1,9 @@
+// select with only a default; no channel ready -> default runs
+chan c: int[1];
+
+select {
+    case c =>
+        println("got data");
+    default =>
+        println("no data (default)");
+}

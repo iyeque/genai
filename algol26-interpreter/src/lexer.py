@@ -94,6 +94,8 @@ class TokenType(Enum):
     CHAN = auto()
     ACTOR = auto()
     SELECT = auto()
+    CASE = auto()
+    DEFAULT = auto()
     LOCK = auto()
     ATOMIC = auto()
     CONVERT = auto()
@@ -252,6 +254,8 @@ class Lexer:
         'chan': TokenType.CHAN,
         'actor': TokenType.ACTOR,
         'select': TokenType.SELECT,
+        'case': TokenType.CASE,
+        'default': TokenType.DEFAULT,
         'lock': TokenType.LOCK,
         'atomic': TokenType.ATOMIC,
         # Modules

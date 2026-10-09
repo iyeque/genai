@@ -409,10 +409,11 @@ class ReceiveExpr(Expr):
 
 @dataclass
 class Case:
-    """A case in select: case c => stmt (send) or case receive c => stmt (receive)"""
+    """A case in select: case c => stmt (receive) or case c <- value => stmt (send)"""
     channel: Expr
     is_send: bool
     stmt: Stmt
+    value: Optional[Expr] = None
 
 @dataclass
 class SelectStmt(Stmt):

@@ -31,6 +31,17 @@ import math
 from src.distributions import Distribution, Conditional
 
 
+class _Empty:
+    """Sentinel for an empty channel (distinct from a buffered None value)."""
+    __slots__ = ()
+
+    def __repr__(self):
+        return "<empty>"
+
+
+_EMPTY = _Empty()
+
+
 class ProbModel(Distribution):
     """A distribution defined by a prob block: executes the block to sample."""
     def __init__(self, statements: List[Stmt], closure_env: Environment):
@@ -780,26 +791,29 @@ class Interpreter:
                 pass
 
     def eval_SelectStmt(self, stmt: SelectStmt):
-        # Simplified select: only support receive cases and default
-        # Try non-blocking receive for each case; if ready, execute that case
-        ready_case = None
+        # select { case c => stmt; ...; default => stmt; }
+        # Probe each case channel WITHOUT consuming, so the case body's own
+        # `<-c` receive actually gets the value. Send cases probe for buffer
+        # space; receive cases probe for a buffered value.
         for case in stmt.cases:
             ch = self.eval(case.channel)
             if not isinstance(ch, Chan):
                 raise InterpreterError(f"Select case channel is not a Chan: {type(ch)}")
             if case.is_send:
-                continue
-            val = ch.try_recv()
-            if val is not None:
-                ready_case = case
-                break
-        if ready_case:
-            self.eval(ready_case.stmt)
-        elif stmt.default_stmt:
+                # Ready to send if the buffer has room (non-blocking put would succeed)
+                if ch.try_send(self.eval(case.value)):
+                    self.eval(case.stmt)
+                    return
+            else:
+                # Ready to receive if a value is buffered (peek without consuming)
+                if ch.peek() is not _EMPTY:
+                    self.eval(case.stmt)
+                    return
+        # No case was ready: run default if present, otherwise let other tasks run
+        if stmt.default_stmt is not None:
             self.eval(stmt.default_stmt)
-        else:
-            if self.scheduler:
-                self.scheduler.run_all()
+        elif self.scheduler:
+            self.scheduler.run_all()
 
     def eval_AsyncProcDeclStmt(self, stmt: AsyncProcDeclStmt):
         env_at_decl = self.current_env
@@ -909,95 +923,16 @@ class Chan:
         except queue.Empty:
             return None
 
-    def eval_SelectStmt(self, stmt: SelectStmt):
-        # Simplified select: only support receive cases and default
-        # Evaluate channel expressions once
-        ready_case = None
-        for case in stmt.cases:
-            ch = self.eval(case.channel)
-            if not isinstance(ch, Chan):
-                raise InterpreterError(f"Select case channel is not a Chan: {type(ch)}")
-            if case.is_send:
-                # Send case: try non-blocking send after evaluating value from case.stmt
-                # For now, skip send cases
-                continue
-            else:
-                # Receive case: try non-blocking receive
-                val = ch.try_recv()
-                if val is not None:
-                    # We have a value; now we need to execute the case's statement with that value
-                    # The case's statement likely expects the received value; how to provide it?
-                    # Our grammar: case c => stmt. In the stmt, the receive might be used directly; but we already consumed it.
-                    # This design is awkward. For simplicity, we'll treat the case's statement as a block that may use the received value via a temporary variable?
-                    # Actually, a better design: the case's expression is the receive itself. But we have ReceiveExpr as expression; so case could be: case c => x := <-c;
-                    # In that pattern, the assignment expression will call eval_ReceiveExpr again and block. So our non-blocking try here is not helpful.
-                    # Given the complexity, let's just run the case statement directly (which will block if it tries to receive again). That defeats select.
-                    # Alternative: we could implement a special form: `case c => receive_into(var)` but not present.
-                    # Given time constraints, we'll implement a very simple select that just picks the first case whose channel is ready (non-blocking recv returned a value) and then executes the statement without allowing further receives. This is brittle.
-                    # We'll instead skip full select for now and just run default if present, else run first case.
-                    pass
-        # Fallback: if any ready_case found, execute its statement; else if default exists, execute default; else block indefinitely (not good)
-        if ready_case:
-            self.eval(ready_case.stmt)
-        elif stmt.default_stmt:
-            self.eval(stmt.default_stmt)
-        else:
-            # Block indefinitely by yielding until interrupted (not ideal)
-            if self.scheduler:
-                self.scheduler.run_all()
+    def peek(self) -> Any:
+        """Non-consuming readiness check: return the next value without removing it.
 
-    def eval_AsyncProcDeclStmt(self, stmt: AsyncProcDeclStmt):
-        # Async procedures are stored as callables that spawn tasks
-        # Build a closure that captures the environment
-        env_at_decl = self.current_env
-        # Store the proc AST
-        def async_callable(*args):
-            # Create a new environment for the task
-            task_env = Environment(parent=env_at_decl)
-            # Bind parameters
-            for param, arg in zip(stmt.params, args):
-                task_env.define(param.name, arg)
-            # Create generator that runs the body
-            gen = self.run_task_body(stmt.body, task_env)
-            task = Task(gen, name=stmt.name)
-            # Add to scheduler if active
-            if self.scheduler:
-                self.scheduler.new_task(gen, name=stmt.name)
-            return task
-        # Register in environment
-        self.current_env.functions[stmt.name] = async_callable
-
-    def run_task_body(self, body: Union[BlockStmt, Expr], env: Environment) -> Generator:
-        """Execute an async procedure body as a generator that yields on blocking ops."""
-        # We'll run the body in a loop, but need to yield at blocking points.
-        # For now, we simulate by running the body normally but wrap channel operations to yield.
-        # We can't easily intercept; instead we will modify eval_expr and eval_stmt to check if they are in a task and yield.
-        # Simplest approach: have a flag `in_task` and after each statement, yield control.
-        # But we need to block on channel ops; those already call scheduler.run_all() which yields.
-        # So just run the body; it will block on channel ops and call scheduler.run_all() which will run other tasks.
-        # However, the body runs in the current call stack, not a generator, so we cannot yield from it.
-        # We need to make the body a generator that yields at each statement.
-        # Given the complexity, for now we run the body directly (blocking) and rely on the fact that channel ops will call scheduler.run_all() which runs other tasks but does not yield this one.
-        # Actually, if we run the body directly, it will execute to completion without yielding, blocking only on channel ops (which will call scheduler.run_all() but then continue after send/recv succeeds). That's okay for cooperative multitasking: one task runs at a time, but channel ops may block and allow others to run.
-        # However, if the body does not perform any channel op, it will never yield, preventing other tasks from running. That's bad.
-        # We need to ensure that tasks yield periodically. We could instrument each statement to yield, but that's heavy.
-        # Alternative: run the body in a separate thread? No.
-        # Given the time, I'll implement a simple approach: after each top-level statement in the body, call `self.scheduler.run_all()` to allow other tasks to run. But we need to recursively traverse statements.
-        # This is getting too complex for a quick integration.
-        # For now, I'll leave async procedures as stubs; they won't work properly.
-        # But we can test basic channels without async.
-        self.current_env = env
+        Returns a sentinel `_EMPTY` if the channel has nothing buffered, so that
+        a legitimate buffered value of None is not mistaken for 'empty'.
+        """
         try:
-            if isinstance(body, BlockStmt):
-                for stmt in body.statements:
-                    self.eval(stmt)
-                    # Yield after each statement to be cooperative
-                    if self.scheduler:
-                        self.scheduler.run_all()
-            else:
-                self.eval(body)
-        finally:
-            self.current_env = env.parent if env.parent else env
+            return self.queue.queue[0]
+        except IndexError:
+            return _EMPTY
 
 
 class Scheduler:
