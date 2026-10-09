@@ -1,0 +1,10 @@
+// Phase 5.1b: SMT-refuted contract — should be REFUTED with counterexample
+// n >= 0 does NOT imply result = n is >= 1  (counterexample: n = 0)
+proc bad(n: int) -> int
+  requires n >= 0
+  ensures result >= 1
+= n;
+
+begin
+  println(bad(3));   // 3 (runtime ok), but static proof fails
+end

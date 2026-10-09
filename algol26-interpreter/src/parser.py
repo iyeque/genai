@@ -50,6 +50,11 @@ class Parser:
         self.tokens = lexer.tokenize()
         self.pos = 0
         self.current_token = self.tokens[0] if self.tokens else None
+        # When True, a top-level '=' is treated as the proc-body separator
+        # (stop) rather than an equality operator. Set while parsing
+        # requires/ensures/invariant conditions so `ensures result >= 1 = body`
+        # is not mis-parsed as `result >= (1 == body)`.
+        self._spec_context = False
 
     def error(self, message: str) -> ParserError:
         return ParserError(message, self.current_token)
@@ -231,9 +236,16 @@ class Parser:
         The terminating ';' is optional: a clause ends at the expression,
         an optional string message, and an optional semicolon. This lets
         clauses be written one-per-line before a body without semicolons.
+        While parsing the condition, a top-level '=' is treated as the
+        proc-body separator rather than equality.
         """
         self.expect(kind)
-        condition = self.parse_expression()
+        prev = self._spec_context
+        self._spec_context = True
+        try:
+            condition = self.parse_expression()
+        finally:
+            self._spec_context = prev
         message = None
         if self.match(TokenType.STRING):
             message = self.current_token.value
@@ -509,6 +521,10 @@ class Parser:
 
         while True:
             token = self.current_token
+            # In a spec clause, a top-level '=' introduces the proc body, not
+            # equality — stop so the body separator is left for the caller.
+            if self._spec_context and token.type == TokenType.EQ:
+                break
             if token.type not in self.PRECEDENCE or self.PRECEDENCE[token.type] < min_prec:
                 break
 

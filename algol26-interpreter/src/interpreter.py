@@ -30,6 +30,16 @@ from typing import Any, List, Dict, Optional, Union
 import math
 from src.distributions import Distribution, Conditional
 
+# SMT verification (Phase 5.1b) is optional: if z3-solver is not installed,
+# static verification is skipped rather than breaking the interpreter.
+try:
+    from src.smt import verify_proc_contracts, SmtUnsupported
+    _SMT_AVAILABLE = True
+except ImportError:
+    verify_proc_contracts = None
+    SmtUnsupported = Exception
+    _SMT_AVAILABLE = False
+
 
 class _Empty:
     """Sentinel for an empty channel (distinct from a buffered None value)."""
@@ -197,7 +207,7 @@ class Environment:
 
 
 class Interpreter:
-    def __init__(self, base_path=None, verify_mode=False):
+    def __init__(self, base_path=None, verify_mode=False, smt_verify=False):
         self.base_path = base_path or os.getcwd()
         # Use concurrency-aware environment if available
         if 'EnvWithConcurrency' in globals():
@@ -206,6 +216,7 @@ class Interpreter:
             self.global_env = Environment()
         self.current_env = self.global_env
         self.verify_mode = verify_mode
+        self.smt_verify = smt_verify
         self._setup_builtins()
         self.scheduler = Scheduler()
 
@@ -240,6 +251,8 @@ class Interpreter:
         # First pass: handle top-level declarations.
         for decl in program.declarations:
             if isinstance(decl, ProcDeclStmt):
+                if self.smt_verify and (decl.preconditions or decl.postconditions):
+                    self._static_verify_proc(decl)
                 self.current_env.define_function(decl.name, self._make_proc_function(decl))
             else:
                 self.eval(decl)
@@ -285,6 +298,41 @@ class Interpreter:
                     env.vars['result'] = prev
                 else:
                     env.vars.pop('result', None)
+
+    def _static_verify_proc(self, decl):
+        """Run SMT-based static verification of a proc's contracts (5.1b).
+
+        Reports proven / refuted (with counterexample) / deferred outcomes.
+        A refuted postcondition raises in verify_mode, else warns.
+        """
+        if not _SMT_AVAILABLE:
+            print(f"NOTE: static verification unavailable for '{decl.name}' "
+                  f"(install z3-solver to enable)")
+            return
+        try:
+            results = verify_proc_contracts(decl)
+        except Exception as e:  # never let verification crash a run
+            print(f"NOTE: static verification skipped for '{decl.name}': {e}")
+            return
+        for kind, pr, note in results:
+            if pr is None:
+                # deferred / assumed / not translatable
+                continue
+            label = f"{decl.name}: {kind}"
+            if pr.status == "proven":
+                print(f"SMT PROVEN: {label}" + (f" ({note})" if note else ""))
+            elif pr.status == "refuted":
+                cex = ""
+                if pr.counterexample:
+                    cex = " | counterexample: " + ", ".join(
+                        f"{k}={v}" for k, v in pr.counterexample.items())
+                msg = f"SMT REFUTED: {label}" + (f" ({note})" if note else "") + cex
+                if self.verify_mode:
+                    raise InterpreterError(msg)
+                else:
+                    print(f"WARNING: {msg}")
+            else:  # unknown
+                print(f"SMT UNKNOWN: {label}" + (f" ({note})" if note else ""))
 
     def _make_proc_function(self, decl: ProcDeclStmt):
         """Create a callable function object for a proc declaration."""

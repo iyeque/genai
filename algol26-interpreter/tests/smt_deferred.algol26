@@ -1,0 +1,11 @@
+// Phase 5.1b: block-bodied proc — postcondition deferred to runtime check
+proc double(n: int) -> int
+  requires n >= 0
+  ensures result >= n
+begin
+  return n * 2;
+end
+
+begin
+  println(double(4));   // 8
+end

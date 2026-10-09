@@ -1,0 +1,10 @@
+// Phase 5.1b: SMT-verified contract — should be PROVEN
+// n >= 0  ==>  result = n + 1  ==>  result >= 1
+proc succ_pos(n: int) -> int
+  requires n >= 0
+  ensures result >= 1
+= n + 1;
+
+begin
+  println(succ_pos(5));   // 6
+end

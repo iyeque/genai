@@ -15,12 +15,14 @@ from typechecker.typecheck import typecheck_program, TypeCheckError as TCError
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python main.py <source_file> [--verify]")
+        print("Usage: python main.py <source_file> [--verify] [--smt]")
         sys.exit(1)
 
     filename = sys.argv[1]
     # Check for --verify flag
     verify_mode = '--verify' in sys.argv[2:]
+    # --smt enables static (Z3) verification of contracts
+    smt_verify = '--smt' in sys.argv[2:]
 
     try:
         with open(filename, 'r', encoding='utf-8') as f:
@@ -46,7 +48,7 @@ def main():
             print(f"Type error: {e}")
             sys.exit(1)
 
-        interpreter = Interpreter(verify_mode=verify_mode)
+        interpreter = Interpreter(verify_mode=verify_mode, smt_verify=smt_verify)
         result = interpreter.eval(ast)
     except InterpreterError as e:
         print(f"Runtime error: {e}")
