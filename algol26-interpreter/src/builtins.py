@@ -5,7 +5,7 @@ Provides built-in operations like println, math functions, etc.
 """
 
 import math
-from typing import Any, List
+from typing import Any, List, Union
 
 # Import distribution classes (define in separate module)
 from src.distributions import Bernoulli, Normal, Uniform, Distribution, Conditional, Categorical

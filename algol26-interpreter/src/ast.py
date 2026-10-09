@@ -6,7 +6,7 @@ Uses Type objects from src.type_system for type annotations.
 """
 
 from dataclasses import dataclass
-from typing import List, Optional, Union, Any, Set, TypeVar
+from typing import List, Optional, Union, Any, Set, TypeVar, Dict
 
 # Import type system; note: type_system imports nothing from ast, so safe.
 from src.type_system import Type, PrimitiveType, ArrayType, RecordType, FunctionType, TypeName, Substitution
@@ -144,7 +144,7 @@ class SampleExpr(Expr):
 @dataclass
 class ProbBlockExpr(Expr):
     """Expression form of a probabilistic block: prob { ... }"""
-    statements: List[Stmt]
+    statements: List['Stmt']
 
     def __post_init__(self):
         self.expr_type: Optional[Type] = None
@@ -256,7 +256,7 @@ class ReturnStmt(Stmt):
 
 @dataclass
 class BlockStmt(Stmt):
-    statements: List[Stmt]
+    statements: List['Stmt']
 
     def __post_init__(self):
         pass
@@ -285,7 +285,7 @@ class AssertStmt(Stmt):
 
 @dataclass
 class ProbBlockStmt(Stmt):
-    statements: List[Stmt]
+    statements: List['Stmt']
 
     def __post_init__(self):
         pass
@@ -293,7 +293,7 @@ class ProbBlockStmt(Stmt):
 
 @dataclass
 class CausalBlockStmt(Stmt):
-    statements: List[Stmt]
+    statements: List['Stmt']
 
     def __post_init__(self):
         pass
@@ -374,8 +374,8 @@ class Param:
 # Program
 @dataclass
 class Program(ASTNode):
-    declarations: List[Stmt]
-    statements: List[Stmt]
+    declarations: List['Stmt']
+    statements: List['Stmt']
 
     def __post_init__(self):
         pass
