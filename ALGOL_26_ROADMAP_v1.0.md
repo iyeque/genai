@@ -2,7 +2,7 @@
 
 **Purpose:** This document outlines the comprehensive implementation plan for ALGOL 26, a language designed from the ground up to be the default language for AGI development in the GenAI ecosystem. The roadmap translates the vision into actionable phases, with technical specifications, success criteria, and risk mitigation strategies.
 
-**Current State (Phase 2 — Complete as of 2026-03-23):**
+**Current State (Phases 1–5.1c — verified 2026-10-14):**
 - ✅ Phase 1 (MVI) — Complete: Python interpreter with lexer, parser, AST, interpreter, builtins, demo programs.
 - ✅ Phase 2 (Type System + Modules) — **Complete and published** (Git tag: `phase-2-complete`):
   - Full static type checking using Hindley-Milner inference with extensions:
@@ -14,19 +14,28 @@
   - All MVI demo programs (`hello.algol26`, `ai-demo.algol26`, etc.) pass type checking and run successfully.
   - Documentation: `docs/type_system.md`, `docs/module_system.md`, updated README.
   - Repository: `origin/main` includes complete implementation; tag `phase-2-complete` marks the milestone.
+- ✅ Phase 3 (Probabilistic + Causal) — Complete (2026-03): `prob` blocks, `sample`, distributions, `given` conditioning, causal models.
+- ✅ Phase 4 (Concurrency) — Complete (2026-03): channels, `spawn async` procs, `select` statements (send/receive/default).
+- 🔄 Phase 5 (Formal Verification + Advanced Features) — in progress:
+  - ✅ 5.1a — Pre/postconditions (`requires`/`ensures`) and loop `invariant`s, runtime-checked (2026-10).
+  - ✅ 5.1b — Static SMT verification of proc contracts via Z3 (`--smt`): proven/refuted/deferred, `--verify` hard-fails on refutation (2026-10).
+  - ✅ 5.1c — Static SMT verification of `verify` blocks + `forall`/`exists` quantifiers and `==>` implication (2026-10-14). Full `--smt` suite 30/30.
+  - ⬜ 5.1 remainder — Automatic VC generation, proof automation toward 70% coverage, temporal assertions, model checking.
+  - ⬜ 5.2 — Hardware acceleration primitives (GPU kernels, SIMD).
+  - ⬜ 5.3 — Self-modifying code sandbox.
 - Repository structure:
   ```
   genai/
     algol26-interpreter/   # MVI + Phase 2 Python implementation
-      src/                 # lexer, parser, ast, interpreter, type_system
+      src/                 # lexer, parser, ast, interpreter, builtins, smt
       typechecker/         # inference, typecheck, modules
-      tests/               # demo programs, Phase 2 tests, import/module tests
+      tests/               # demo programs, phase tests, SMT verification tests
       docs/                # type system spec, module system guide
     core-modules/          # Specification drafts
     ALGOL_26_ROADMAP_v1.0.md
   ```
 
-**Next Phase:** Phase 3 — Probabilistic + Causal Primitives (Months 2-3) — in progress.
+**Next Phase:** Phase 5 remainder — 5.1 proof automation (automatic VC generation), then 5.2 hardware acceleration.
 
 **Guiding Principles:**
 1. **AGI-First Design:** Every feature must serve AGI development needs (reasoning, learning, self-modification)
