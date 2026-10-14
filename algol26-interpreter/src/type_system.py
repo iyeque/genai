@@ -155,6 +155,33 @@ class DistType(Type):
     def __hash__(self):
         return hash(('dist', self.element_type))
 
+
+@dataclass(frozen=True)
+class DeviceType(Type):
+    """A device-resident array: device<T> (Phase 5.2).
+
+    Wraps the host element type of an array that lives on a compute device.
+    The CPU reference backend stores it as a plain list; the type lets the
+    checker keep host arrays and device arrays distinct across
+    to_device / launch / from_device.
+    """
+    element_type: Type
+
+    def substitute(self, subst: 'Substitution') -> 'Type':
+        return DeviceType(self.element_type.substitute(subst))
+
+    def free_vars(self) -> Set['TypeVar']:
+        return self.element_type.free_vars()
+
+    def __str__(self):
+        return f"device[{self.element_type}]"
+
+    def __repr__(self):
+        return f"DeviceType({self.element_type})"
+
+    def __hash__(self):
+        return hash(('device', self.element_type))
+
 @dataclass(frozen=True)
 class FunctionType(Type):
     param_types: List[Type]

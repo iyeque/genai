@@ -18,6 +18,7 @@ from src.ast import (
     ProcDeclStmt, Param, ProbBindStmt, ProbExpr, SampleExpr, GivenExpr, ProbBlockExpr,
     ChanDeclStmt, SendStmt, ReceiveExpr, SelectStmt, AsyncProcDeclStmt,
     ProbBlockStmt, CausalBlockStmt, VerifyBlockStmt,
+    KernelLaunchExpr,
     Token,
 )
 from src.builtins import Builtins
@@ -684,6 +685,22 @@ class Interpreter:
         
         # If not a channel, get as a variable
         return self.current_env.get(expr.name)
+
+    def eval_KernelLaunchExpr(self, expr: KernelLaunchExpr):
+        """launch(kernel, device_array): map a @kernel proc over a device array.
+
+        The kernel operand resolves to the proc callable; the input must be a
+        DeviceArray. Execution is dispatched to the active backend (CPU
+        reference on this build). Returns a DeviceArray of per-element results.
+        """
+        import src.device as device
+        kernel_fn = self.eval(expr.kernel)
+        input_arr = self.eval(expr.input)
+        if not callable(kernel_fn):
+            raise InterpreterError("launch() first argument must be a kernel proc")
+        if not isinstance(input_arr, device.DeviceArray):
+            raise InterpreterError("launch() second argument must be a device array (use to_device)")
+        return device.launch(kernel_fn, input_arr)
 
     def eval_BinaryOpExpr(self, expr: BinaryOpExpr) -> Any:
         left = self.eval(expr.left)

@@ -1,0 +1,11 @@
+// Phase 5.2: @vectorize attribute on a scalar proc, applied via launch.
+// The width annotation is metadata for a real SIMD/GPU backend; on the CPU
+// reference backend the kernel still runs elementwise and produces real
+// results, proving the attribute surface parses and executes.
+@kernel(gpu) @vectorize(width: 8) proc dbl(x: real) -> real = x * 2.0;
+
+begin
+  var xs := to_device([1.5, 2.5, 3.5]);
+  var ys := launch(dbl, xs);
+  println(from_device(ys));   // expect [3.0, 5.0, 7.0]
+end

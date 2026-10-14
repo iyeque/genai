@@ -177,6 +177,21 @@ class QuantifierExpr(Expr):
         self.expr_type: Optional[Type] = None
 
 
+@dataclass
+class KernelLaunchExpr(Expr):
+    """launch(kernel, device_array) -> device_array (Phase 5.2).
+
+    Applies a @kernel proc elementwise over a device array on the active
+    backend. The CPU reference backend maps the kernel body across elements;
+    a future GPU backend would schedule the same graph on device.
+    """
+    kernel: Expr          # identifier naming the kernel proc
+    input: Expr           # device array to map over
+
+    def __post_init__(self):
+        self.expr_type: Optional[Type] = None
+
+
 # Statements
 @dataclass
 class Stmt(ASTNode):
@@ -377,12 +392,31 @@ class ProcDeclStmt(Stmt):
     body: Union['BlockStmt', Expr]
     preconditions: List['SpecClause'] = None   # requires ...
     postconditions: List['SpecClause'] = None  # ensures ... (may use `result`)
+    attributes: List['Attribute'] = None       # @kernel(...), @vectorize(...) (Phase 5.2)
 
     def __post_init__(self):
         if self.preconditions is None:
             self.preconditions = []
         if self.postconditions is None:
             self.postconditions = []
+        if self.attributes is None:
+            self.attributes = []
+
+
+@dataclass
+class Attribute:
+    """A proc attribute: @name(args). E.g. @kernel(gpu), @vectorize(width: 8).
+
+    Phase 5.2 hardware-acceleration surface. `name` is the attribute identifier
+    (without '@'); `args` is a list of raw string arguments (e.g. ['gpu'] or
+    ['width: 8'] parsed lazily by the backend).
+    """
+    name: str
+    args: List[str]
+
+    def __post_init__(self):
+        if self.args is None:
+            self.args = []
 
 
 @dataclass

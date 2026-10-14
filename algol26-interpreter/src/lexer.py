@@ -89,7 +89,9 @@ class TokenType(Enum):
     INVARIANT = auto()
     FORALL = auto()
     EXISTS = auto()
+    LAUNCH = auto()
     KERNEL = auto()
+    VECTORIZE = auto()
     # Concurrency
     ASYNC = auto()
     AWAIT = auto()
@@ -252,7 +254,9 @@ class Lexer:
         'invariant': TokenType.INVARIANT,
         'forall': TokenType.FORALL,
         'exists': TokenType.EXISTS,
+        'launch': TokenType.LAUNCH,
         'kernel': TokenType.KERNEL,
+        'vectorize': TokenType.VECTORIZE,
         # Concurrency
         'async': TokenType.ASYNC,
         'await': TokenType.AWAIT,

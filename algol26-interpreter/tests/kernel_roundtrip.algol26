@@ -1,0 +1,12 @@
+// Phase 5.2: device round-trip correctness.
+// to_device -> launch -> from_device must preserve element values.
+// (Avoids len(), whose builtin type is a non-generic placeholder in the
+// current typechecker — unrelated to the device layer.)
+@kernel(gpu) proc inc(x: int) -> int = x + 1;
+
+begin
+  var xs := to_device([10, 20, 30]);
+  var ys := launch(inc, xs);
+  var back := from_device(ys);
+  println(back);           // expect [11, 21, 31]
+end

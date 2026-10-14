@@ -15,9 +15,10 @@ from src.ast import (
     IfStmt, WhileStmt, ForStmt, ReturnStmt, BlockStmt, ExprStmt, SkipStmt, AssertStmt,
     ProbBlockStmt, CausalBlockStmt, VerifyBlockStmt, ProbBindStmt,
     ProbBlockExpr, GivenExpr,
-    QuantifierExpr,
+    QuantifierExpr, KernelLaunchExpr,
     ImportStmt, ExportStmt, ModuleDeclStmt,
     ProcDeclStmt, Param,
+    Attribute,
     ChanDeclStmt, SendStmt, ReceiveExpr, SelectStmt, AsyncProcDeclStmt,
     Case, SpecClause,
 )
@@ -95,7 +96,8 @@ class Parser:
         while not self.match(TokenType.EOF):
             # Determine if declaration or statement
             if self.current_token.type in (TokenType.VAR, TokenType.CONST, TokenType.TYPE, TokenType.PROC, TokenType.CHAN) or \
-               (self.current_token.type == TokenType.ASYNC and self.peek() and self.peek().type == TokenType.PROC):
+               (self.current_token.type == TokenType.ASYNC and self.peek() and self.peek().type == TokenType.PROC) or \
+               (self.current_token.type == TokenType.AT and self.peek() and self.peek().type == TokenType.KERNEL):
                 decl = self.parse_declaration()
                 declarations.append(decl)
             else:
@@ -119,6 +121,8 @@ class Parser:
             return self.parse_proc_decl()
         elif t == TokenType.ASYNC:
             return self.parse_async_proc_decl()
+        elif t == TokenType.AT:
+            return self.parse_attributed_proc_decl()
         else:
             raise self.error(f"Unexpected token {t.name} in declaration")
 
@@ -256,6 +260,42 @@ class Parser:
             self.advance()
         return SpecClause(condition=condition, message=message)
 
+    def parse_attributes(self) -> List[Attribute]:
+        """Parse zero or more proc attributes: @name  or  @name(arg, arg, ...).
+
+        Attribute arguments are captured as raw source strings (split on commas)
+        and interpreted lazily by the backend, so @kernel(gpu) and
+        @vectorize(width: 8) both parse without attribute-specific grammar.
+        """
+        attrs = []
+        while self.match(TokenType.AT):
+            self.advance()
+            name = self.current_token.value
+            self.advance()  # kernel / vectorize / any attribute name token
+            args = []
+            if self.match(TokenType.LPAREN):
+                self.advance()
+                raw = ""
+                depth = 1
+                # Capture the argument list verbatim, then split on top-level commas.
+                while depth > 0 and not self.match(TokenType.EOF):
+                    if self.match(TokenType.LPAREN):
+                        depth += 1
+                    elif self.match(TokenType.RPAREN):
+                        depth -= 1
+                        if depth == 0:
+                            break
+                    tok = self.current_token
+                    piece = tok.value
+                    if piece == "":
+                        piece = tok.type.name
+                    raw += (" " if raw and not raw.endswith(" ") else "") + piece
+                    self.advance()
+                self.expect(TokenType.RPAREN)
+                args = [a.strip() for a in raw.split(",") if a.strip()]
+            attrs.append(Attribute(name=name, args=args))
+        return attrs
+
     def parse_proc_decl(self) -> ProcDeclStmt:
         token = self.expect(TokenType.PROC)
         name = self.expect(TokenType.IDENT).value
@@ -285,6 +325,13 @@ class Parser:
 
         return ProcDeclStmt(name=name, params=params, return_type=return_type, body=body,
                             preconditions=preconditions, postconditions=postconditions)
+
+    def parse_attributed_proc_decl(self) -> ProcDeclStmt:
+        """Parse  @attr... proc ...  — attributes precede the proc declaration."""
+        attributes = self.parse_attributes()
+        decl = self.parse_proc_decl()
+        decl.attributes = attributes
+        return decl
 
     def parse_statement(self) -> Stmt:
         t = self.current_token.type
@@ -575,6 +622,16 @@ class Parser:
             self.expect(TokenType.DOT)
             body = self.parse_expression()
             return QuantifierExpr(kind=kind, var_name=var_name, var_type=var_type, body=body)
+
+        # Kernel launch (Phase 5.2): launch(kernel, device_array)
+        if t == TokenType.LAUNCH:
+            self.advance()
+            self.expect(TokenType.LPAREN)
+            kernel = self.parse_expression()
+            self.expect(TokenType.COMMA)
+            input_arr = self.parse_expression()
+            self.expect(TokenType.RPAREN)
+            return KernelLaunchExpr(kernel=kernel, input=input_arr)
 
         # Literals
         if t in (TokenType.INTEGER, TokenType.REAL, TokenType.CHAR, TokenType.STRING):

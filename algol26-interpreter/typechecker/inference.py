@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 
 from src.type_system import (
     Type, TypeVar, FunctionType, ArrayType, RecordType, ADTType, ADTConstructor,
-    PrimitiveType, TypeName, BuiltinType, DistType, Substitution, UnificationError,
+    PrimitiveType, TypeName, BuiltinType, DistType, DeviceType, Substitution, UnificationError,
     fresh_type_var, fresh_row_var,
     INT_TYPE, REAL_TYPE, BOOL_TYPE, STRING_TYPE, CHAR_TYPE, VOID_TYPE,
     apply_subst, compose_subst, ChanType, TaskType
@@ -24,7 +24,7 @@ from src.ast import (
     LiteralExpr, IdentifierExpr, BinaryOpExpr, UnaryOpExpr, CallExpr,
     ArrayIndexExpr, RecordAccessExpr, ArrayConstructorExpr, RecordConstructorExpr,
     ParenExpr, TernaryExpr, ProbExpr, SampleExpr, GivenExpr, ProbBlockExpr,
-    QuantifierExpr,
+    QuantifierExpr, KernelLaunchExpr,
     VarDeclStmt, ConstDeclStmt, TypeDeclStmt, AssignmentStmt, ProcCallStmt,
     IfStmt, WhileStmt, ForStmt, ReturnStmt, BlockStmt, ExprStmt, SkipStmt, AssertStmt,
     ProbBlockStmt, CausalBlockStmt, VerifyBlockStmt, ProbBindStmt,
@@ -128,6 +128,9 @@ class ConstraintGenerator:
         }
         # Special builtins that accept any arguments
         self.dynamic_builtins = {'println', 'print', 'int', 'real', 'char', 'string', 'bytes', 'sample', 'infer'}
+        # Phase 5.2 device builtins: return types depend on arguments, handled
+        # specially in CallExpr inference (to_device/from_device).
+        self.device_builtins = {'to_device', 'from_device'}
         # Add primitive types to env
         for name, typ in [('int', INT_TYPE), ('real', REAL_TYPE), ('bool', BOOL_TYPE),
                           ('char', CHAR_TYPE), ('string', STRING_TYPE), ('void', VOID_TYPE)]:
@@ -136,6 +139,8 @@ class ConstraintGenerator:
         for name, typ in self.builtins.items():
             self.env.extend(name, TypeScheme([], typ))
         for name in self.dynamic_builtins:
+            self.env.extend(name, TypeScheme([], BuiltinType(name)))
+        for name in self.device_builtins:
             self.env.extend(name, TypeScheme([], BuiltinType(name)))
 
     def add_constraint(self, t1: Type, t2: Type, node=None):
@@ -448,6 +453,23 @@ class ConstraintGenerator:
                     elif callee_type.name == 'bytes':
                         # bytes type? Not defined; treat as string? We'll just return string.
                         return STRING_TYPE
+                elif callee_type.name == 'to_device':
+                    # to_device(host_array) -> device<elem>; accept one array arg.
+                    if len(arg_types) != 1:
+                        raise TypeCheckError("to_device expects 1 argument", expr)
+                    at = arg_types[0]
+                    if isinstance(at, DeviceType):
+                        return at  # already a device array
+                    elem = at.element_type if isinstance(at, ArrayType) else TypeVar(fresh_type_var())
+                    return DeviceType(elem)
+                elif callee_type.name == 'from_device':
+                    # from_device(device<T>) -> array<T> (host array).
+                    if len(arg_types) != 1:
+                        raise TypeCheckError("from_device expects 1 argument", expr)
+                    at = arg_types[0]
+                    if isinstance(at, DeviceType):
+                        return ArrayType(at.element_type)
+                    return at
                 else:
                     # Unknown builtin, return fresh var
                     return ret_type
@@ -585,6 +607,16 @@ class ConstraintGenerator:
             finally:
                 self.env = old_env
             return BOOL_TYPE
+
+        elif isinstance(expr, KernelLaunchExpr):
+            # launch(kernel, device_array) -> device<T> (Phase 5.2).
+            # The kernel maps a scalar T -> T elementwise, so the input device
+            # array's element type is preserved in the output.
+            input_type = self.infer_expr(expr.input)
+            if isinstance(input_type, DeviceType):
+                return input_type
+            elem = input_type.element_type if isinstance(input_type, ArrayType) else TypeVar(fresh_type_var())
+            return DeviceType(elem)
 
         else:
             raise TypeCheckError(f"Unsupported expression type: {type(expr).__name__}", expr)

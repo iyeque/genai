@@ -20,7 +20,10 @@ class Builtins:
         # Convert each arg to string, handling arrays/records simply
         parts = []
         for arg in args:
-            if isinstance(arg, list):
+            # Phase 5.2: render device arrays as plain lists.
+            if arg.__class__.__name__ == 'DeviceArray':
+                parts.append('[' + ', '.join(str(x) for x in arg.data) + ']')
+            elif isinstance(arg, list):
                 # Simple array formatting
                 parts.append('[' + ', '.join(str(x) for x in arg) + ']')
             elif isinstance(arg, dict):
@@ -210,6 +213,19 @@ class Builtins:
         if isinstance(x, bytes):
             return x
         raise TypeError(f"Cannot convert {type(x)} to bytes")
+
+    # Phase 5.2: hardware-acceleration device transfers (CPU reference backend)
+    @staticmethod
+    def to_device(data, device="gpu"):
+        """Move a host array onto a device, returning a DeviceArray."""
+        import src.device as _device
+        return _device.to_device(data, device=device)
+
+    @staticmethod
+    def from_device(device_array):
+        """Move a device array back to the host as a plain list."""
+        import src.device as _device
+        return _device.from_device(device_array)
 
 
 # Helper for type checking

@@ -1,0 +1,15 @@
+// Phase 5.2 tracer bullet: CPU reference kernel.
+// A @kernel(gpu) proc runs elementwise over an array. On this build the GPU
+// backend is a stub, so execution falls back to the CPU reference backend,
+// which applies the kernel body to each element and returns real results.
+@kernel(gpu) proc square(x: real) -> real
+  requires x >= 0.0
+= x * x;
+
+begin
+  var xs := to_device([1.0, 2.0, 3.0, 4.0]);
+  var ys := launch(square, xs);
+  println(ys);        // expect [1.0, 4.0, 9.0, 16.0]
+  var back := from_device(ys);
+  println(back);      // expect [1.0, 4.0, 9.0, 16.0]
+end
