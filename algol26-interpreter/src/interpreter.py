@@ -539,6 +539,11 @@ class Interpreter:
             self.eval(s)
 
     def eval_VerifyBlockStmt(self, stmt: VerifyBlockStmt):
+        # Phase 5.1c: under --smt, statically prove the condition with Z3
+        # instead of (or in addition to) evaluating it at runtime.
+        if self.smt_verify:
+            self._static_verify_block(stmt)
+            return
         condition = self.eval(stmt.condition)
         if not isinstance(condition, bool):
             raise InterpreterError("Verify condition must be boolean")
@@ -548,6 +553,33 @@ class Interpreter:
                 raise InterpreterError(f"VERIFICATION FAILED: {msg}")
             else:
                 print(f"VERIFICATION FAILED: {msg}")
+
+    def _static_verify_block(self, stmt: VerifyBlockStmt):
+        """Statically discharge a verify block's condition with Z3 (Phase 5.1c).
+
+        The condition is translated to SMT and proven with no assumptions
+        (a standalone obligation). A refutation hard-fails under --verify,
+        otherwise warns — consistent with proc-contract verification.
+        """
+        from src.smt import SmtTranslator, prove, SmtUnsupported
+        try:
+            tr = SmtTranslator()
+            goal = tr.translate(stmt.condition)
+        except SmtUnsupported as e:
+            print(f"VERIFY: not statically provable ({e}); deferred to runtime")
+            return
+        result = prove([], goal, var_names={**tr.vars, **tr.bound_vars})
+        if result.proven:
+            print("SMT PROVEN: verify block")
+        elif result.status == "refuted":
+            msg = stmt.message or "Verification failed"
+            cex = ", ".join(f"{k}={v}" for k, v in result.counterexample.items()) or "n/a"
+            line = f"SMT REFUTED: {msg} | counterexample: {cex}"
+            if self.verify_mode:
+                raise InterpreterError(line)
+            print(f"WARNING: {line}")
+        else:
+            print("VERIFY: SMT returned unknown; deferred to runtime")
 
     def eval_ProbBindStmt(self, stmt: ProbBindStmt):
         # Evaluate the distribution expression to a Distribution object

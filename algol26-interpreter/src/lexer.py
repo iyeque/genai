@@ -87,6 +87,8 @@ class TokenType(Enum):
     REQUIRES = auto()
     ENSURES = auto()
     INVARIANT = auto()
+    FORALL = auto()
+    EXISTS = auto()
     KERNEL = auto()
     # Concurrency
     ASYNC = auto()
@@ -136,6 +138,7 @@ class TokenType(Enum):
     ARROW = auto()   # ->
     FAT_ARROW = auto()  # =>
     DOUBLE_COLON = auto()  # ::
+    IMPLIES = auto()  # ==>
     # Delimiters
     LPAREN = auto()
     RPAREN = auto()
@@ -247,6 +250,8 @@ class Lexer:
         'requires': TokenType.REQUIRES,
         'ensures': TokenType.ENSURES,
         'invariant': TokenType.INVARIANT,
+        'forall': TokenType.FORALL,
+        'exists': TokenType.EXISTS,
         'kernel': TokenType.KERNEL,
         # Concurrency
         'async': TokenType.ASYNC,
@@ -280,8 +285,13 @@ class Lexer:
         '<<': TokenType.LSHIFT,
         '>>': TokenType.RSHIFT,
         '::': TokenType.DOUBLE_COLON,
+        '=>': TokenType.FAT_ARROW,  # Fat arrow for proc return
+        '==>': TokenType.IMPLIES,   # Logical implication (verification)
         '..': TokenType.DOTDOT,
     }
+
+    # Max operator length: maximal munch must try 3-char ops (==>) before 2-char (=>).
+    MAX_OP_LEN = 3
 
     # Single-character operators
     SINGLE_CHAR_OPS = {

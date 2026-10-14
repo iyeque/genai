@@ -1,0 +1,7 @@
+// Phase 5.1c: static SMT verification of verify blocks with forall quantifiers.
+// Under --smt, Z3 should PROVE this universally-quantified property.
+verify forall n: int. (n >= 0 and n <= 3) ==> (n + 1 >= 1);
+
+begin
+  println("verify-forall proven");
+end

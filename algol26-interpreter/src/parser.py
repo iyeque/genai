@@ -15,6 +15,7 @@ from src.ast import (
     IfStmt, WhileStmt, ForStmt, ReturnStmt, BlockStmt, ExprStmt, SkipStmt, AssertStmt,
     ProbBlockStmt, CausalBlockStmt, VerifyBlockStmt, ProbBindStmt,
     ProbBlockExpr, GivenExpr,
+    QuantifierExpr,
     ImportStmt, ExportStmt, ModuleDeclStmt,
     ProcDeclStmt, Param,
     ChanDeclStmt, SendStmt, ReceiveExpr, SelectStmt, AsyncProcDeclStmt,
@@ -36,6 +37,7 @@ class Parser:
         TokenType.OR: 1,
         TokenType.AND: 2,
         TokenType.GIVEN: 1,  # conditioning operator, very low precedence
+        TokenType.IMPLIES: 1,  # ==> right-assoc, lowest precedence (verification)
         TokenType.EQ: 3, TokenType.NEQ: 3, TokenType.LT: 3, TokenType.LTE: 3, TokenType.GT: 3, TokenType.GTE: 3,
         TokenType.PLUS: 4, TokenType.MINUS: 4,
         TokenType.STAR: 5, TokenType.SLASH: 5, TokenType.PERCENT: 5,
@@ -531,6 +533,9 @@ class Parser:
             prec = self.PRECEDENCE[token.type]
             if token.type == TokenType.CARET:
                 next_min = prec
+            elif token.type == TokenType.IMPLIES:
+                # Right-associative: a ==> b ==> c  parses as  a ==> (b ==> c).
+                next_min = prec
             else:
                 next_min = prec + 1
 
@@ -558,6 +563,18 @@ class Parser:
 
     def parse_primary(self) -> Expr:
         t = self.current_token.type
+
+        # Quantifier expression (verification): forall/exists <var>: <type>. <body>
+        if t in (TokenType.FORALL, TokenType.EXISTS):
+            kind = 'forall' if t == TokenType.FORALL else 'exists'
+            self.advance()
+            var_name = self.expect(TokenType.IDENT).value
+            self.expect(TokenType.COLON)
+            var_type = self.current_token.value  # type name: int, real, or IDENT
+            self.advance()
+            self.expect(TokenType.DOT)
+            body = self.parse_expression()
+            return QuantifierExpr(kind=kind, var_name=var_name, var_type=var_type, body=body)
 
         # Literals
         if t in (TokenType.INTEGER, TokenType.REAL, TokenType.CHAR, TokenType.STRING):

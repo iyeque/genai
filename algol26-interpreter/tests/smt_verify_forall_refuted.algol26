@@ -1,0 +1,7 @@
+// Phase 5.1c: static SMT verification of verify blocks with forall quantifiers.
+// Under --smt, Z3 should REFUTE this (counterexample: n = 0 makes n - 1 >= 0 false).
+verify forall n: int. n >= 0 ==> (n - 1 >= 0);
+
+begin
+  println("verify-forall refuted");
+end

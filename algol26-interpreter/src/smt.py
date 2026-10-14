@@ -18,12 +18,17 @@ import z3
 from src.ast import (
     Expr,
     LiteralExpr, IdentifierExpr, BinaryOpExpr, UnaryOpExpr, ParenExpr,
+    QuantifierExpr,
 )
 from src.lexer import TokenType
 
 
 class SmtUnsupported(Exception):
     """Raised when an expression cannot be translated to SMT."""
+
+
+# Sentinel for "no saved binding" when shadowing quantifier variables.
+_MISSING = object()
 
 
 # Map ALGOL 26 binary operator token types to Z3 builders.
@@ -42,6 +47,7 @@ _BIN_OPS = {
     TokenType.GTE: lambda a, b: a >= b,
     TokenType.AND: lambda a, b: z3.And(a, b),
     TokenType.OR: lambda a, b: z3.Or(a, b),
+    TokenType.IMPLIES: lambda a, b: z3.Implies(a, b),
 }
 
 _UNARY_OPS = {
@@ -56,6 +62,10 @@ class SmtTranslator:
     def __init__(self):
         # identifier name -> z3 term (constant or previously-built expr)
         self.vars = {}
+        # All bound variables introduced by quantifiers, for counterexample
+        # rendering: name -> z3 term. Unlike `vars`, these are NOT unbound
+        # after translation, so a refuted `forall` can show the witness.
+        self.bound_vars = {}
 
     def declare(self, name, sort):
         """Declare a symbolic variable of the given z3 sort."""
@@ -67,6 +77,9 @@ class SmtTranslator:
         """Recursively translate an ALGOL 26 Expr into a z3 term."""
         if isinstance(expr, ParenExpr):
             return self.translate(expr.expr)
+
+        if isinstance(expr, QuantifierExpr):
+            return self._translate_quantifier(expr)
 
         if isinstance(expr, LiteralExpr):
             return self._literal(expr)
@@ -95,6 +108,42 @@ class SmtTranslator:
             return _UNARY_OPS[op](self.translate(expr.operand))
 
         raise SmtUnsupported(f"{type(expr).__name__} not SMT-translatable")
+
+    def _translate_quantifier(self, expr):
+        """Translate a forall/exists QuantifierExpr into a z3 quantifier.
+
+        The bound variable is declared fresh (shadowing any outer binding of the
+        same name) with the sort implied by its type annotation; only int/real
+        are supported, everything else raises SmtUnsupported.
+        """
+        vt = (expr.var_type or "").lower()
+        if vt in ("real", "float"):
+            sort = z3.RealSort()
+        elif vt in ("int", "integer"):
+            sort = z3.IntSort()
+        else:
+            raise SmtUnsupported(f"quantifier variable type {expr.var_type!r} not SMT-translatable")
+
+        # Declare the bound variable (a genuine z3 constant; z3.ForAll binds it).
+        bound = z3.Const(expr.var_name, sort)
+        # Remember it so a refuted obligation can render this witness.
+        self.bound_vars[expr.var_name] = bound
+        # Temporarily bind the name so the body translates the bound variable.
+        saved = self.vars.get(expr.var_name, _MISSING)
+        self.vars[expr.var_name] = bound
+        try:
+            matrix = self.translate(expr.body)
+        finally:
+            if saved is _MISSING:
+                self.vars.pop(expr.var_name, None)
+            else:
+                self.vars[expr.var_name] = saved
+
+        if expr.kind == 'forall':
+            return z3.ForAll(bound, matrix)
+        elif expr.kind == 'exists':
+            return z3.Exists(bound, matrix)
+        raise SmtUnsupported(f"unknown quantifier kind {expr.kind!r}")
 
     @staticmethod
     def _literal(expr):

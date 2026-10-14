@@ -160,6 +160,23 @@ class GivenExpr(Expr):
         self.expr_type: Optional[Type] = None
 
 
+@dataclass
+class QuantifierExpr(Expr):
+    """Quantified formula: forall/exists <var>: <type>. <body>
+
+    Used in verification clauses (Phase 5.1c). `kind` is 'forall' or 'exists';
+    `var_name` is the bound variable; `var_type` is its type name (e.g. 'int');
+    `body` is the (implicitly universally-scoped) matrix the quantifier binds.
+    """
+    kind: str            # 'forall' | 'exists'
+    var_name: str
+    var_type: str
+    body: Expr
+
+    def __post_init__(self):
+        self.expr_type: Optional[Type] = None
+
+
 # Statements
 @dataclass
 class Stmt(ASTNode):

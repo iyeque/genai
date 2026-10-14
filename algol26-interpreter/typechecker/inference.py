@@ -24,6 +24,7 @@ from src.ast import (
     LiteralExpr, IdentifierExpr, BinaryOpExpr, UnaryOpExpr, CallExpr,
     ArrayIndexExpr, RecordAccessExpr, ArrayConstructorExpr, RecordConstructorExpr,
     ParenExpr, TernaryExpr, ProbExpr, SampleExpr, GivenExpr, ProbBlockExpr,
+    QuantifierExpr,
     VarDeclStmt, ConstDeclStmt, TypeDeclStmt, AssignmentStmt, ProcCallStmt,
     IfStmt, WhileStmt, ForStmt, ReturnStmt, BlockStmt, ExprStmt, SkipStmt, AssertStmt,
     ProbBlockStmt, CausalBlockStmt, VerifyBlockStmt, ProbBindStmt,
@@ -399,6 +400,11 @@ class ConstraintGenerator:
                 self.unify(expr, left_type, BOOL_TYPE)
                 self.unify(expr, right_type, BOOL_TYPE)
                 self.unify(expr, result_type, BOOL_TYPE)
+            elif op == TokenType.IMPLIES:
+                # Logical implication (verification, Phase 5.1c): bool ==> bool.
+                self.unify(expr, left_type, BOOL_TYPE)
+                self.unify(expr, right_type, BOOL_TYPE)
+                self.unify(expr, result_type, BOOL_TYPE)
             else:
                 raise TypeCheckError(f"Unsupported binary operator {op.name}", expr)
             return result_type
@@ -565,6 +571,20 @@ class ConstraintGenerator:
             if not isinstance(channel_type, ChanType):
                 raise TypeCheckError(f"Receive from non-channel: {channel_type}", expr)
             return channel_type.element_type
+
+        elif isinstance(expr, QuantifierExpr):
+            # Quantified verification formula (Phase 5.1c): always boolean.
+            # The bound variable is in scope for the body; type-check it, then
+            # require the body to be a boolean formula.
+            old_env = self.env
+            self.env = Env(parent=old_env)
+            self.env.extend(expr.var_name, TypeScheme([], INT_TYPE))
+            try:
+                body_type = self.infer_expr(expr.body)
+                self.unify(expr, body_type, BOOL_TYPE)
+            finally:
+                self.env = old_env
+            return BOOL_TYPE
 
         else:
             raise TypeCheckError(f"Unsupported expression type: {type(expr).__name__}", expr)
