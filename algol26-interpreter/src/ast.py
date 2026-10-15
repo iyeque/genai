@@ -358,6 +358,36 @@ class AlwaysStmt(Stmt):
 
 
 @dataclass
+class LemmaDeclStmt(Stmt):
+    """A named lemma: lemma <name>: <fact> ; (Phase 5.1 proof automation).
+
+    States a fact (typically a quantified formula) that is proven once and can
+    be reused as an assumption via `assume <name>;` in later obligations —
+    proof reuse across a module. The interpreter registers the lemma and, under
+    --smt, proves it and records its translated Z3 term for assumption lookup.
+    """
+    name: str
+    condition: Expr
+
+    def __post_init__(self):
+        pass
+
+
+@dataclass
+class AssumeStmt(Stmt):
+    """assume <name> ; — cite a registered lemma as an assumption (Phase 5.1).
+
+    Under --smt, adds the named lemma's translated fact to the assumption set
+    for subsequent obligations in the same scope (proof reuse). At runtime it is
+    a no-op. An unknown lemma name is an error under --smt.
+    """
+    name: str
+
+    def __post_init__(self):
+        pass
+
+
+@dataclass
 class ProbBindStmt(Stmt):
     """Inside a prob block: binds an identifier to a distribution."""
     identifier: str

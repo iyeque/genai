@@ -1,0 +1,11 @@
+// Phase 5.1 proof automation: named lemmas reused as assumptions.
+// A `lemma` states a fact proven once; later obligations can `assume` it and
+// Z3 discharges goals that depend on it. Here we prove a helper fact and reuse
+// it to discharge an obligation that would otherwise need the fact re-derived.
+lemma nonneg_square: forall x: int. x * x >= 0;
+
+begin
+  assume nonneg_square;
+  verify forall y: int. y * y >= 0;
+  println("lemma reuse proven");
+end

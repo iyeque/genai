@@ -18,7 +18,7 @@ from src.ast import (
     ProcDeclStmt, Param, ProbBindStmt, ProbExpr, SampleExpr, GivenExpr, ProbBlockExpr,
     ChanDeclStmt, SendStmt, ReceiveExpr, SelectStmt, AsyncProcDeclStmt,
     ProbBlockStmt, CausalBlockStmt, VerifyBlockStmt,
-    AlwaysStmt,
+    AlwaysStmt, LemmaDeclStmt, AssumeStmt,
     KernelLaunchExpr,
     Token,
 )
@@ -219,6 +219,11 @@ class Interpreter:
         self.current_env = self.global_env
         self.verify_mode = verify_mode
         self.smt_verify = smt_verify
+        # Phase 5.1 proof automation: lemma registry (name -> translated Z3
+        # term, populated under --smt) and a stack of assumed lemma terms that
+        # subsequent verify/always obligations discharge against.
+        self.lemmas = {}          # name -> z3 term
+        self._assumptions = []    # list of z3 terms from `assume`
         self._setup_builtins()
         self.scheduler = Scheduler()
 
@@ -600,7 +605,7 @@ class Interpreter:
         except SmtUnsupported as e:
             print(f"ALWAYS: not statically provable ({e}); deferred")
             return
-        result = prove([], goal, var_names={**tr.vars, **tr.bound_vars})
+        result = prove(list(self._assumptions), goal, var_names={**tr.vars, **tr.bound_vars})
         if result.proven:
             print("SMT PROVEN: always (invariant holds)")
         elif result.status == "refuted":
@@ -613,12 +618,55 @@ class Interpreter:
         else:
             print("ALWAYS: SMT returned unknown; deferred")
 
+    def eval_LemmaDeclStmt(self, stmt: LemmaDeclStmt):
+        """Register a named lemma; under --smt, prove it and store its Z3 term.
+
+        The lemma fact is proven as a standalone obligation (like a verify
+        block). If it proves, its translated term is recorded so later
+        `assume <name>` statements can reuse it as an assumption. At runtime a
+        lemma declaration is a no-op.
+        """
+        if not self.smt_verify:
+            return
+        if not _SMT_AVAILABLE:
+            print(f"NOTE: lemma '{stmt.name}' not proven (z3 unavailable)")
+            return
+        from src.smt import SmtTranslator, prove, SmtUnsupported
+        try:
+            tr = SmtTranslator()
+            term = tr.translate(stmt.condition)
+        except SmtUnsupported as e:
+            print(f"LEMMA: '{stmt.name}' not translatable ({e}); not registered")
+            return
+        result = prove([], term, var_names={**tr.vars, **tr.bound_vars})
+        if result.proven:
+            self.lemmas[stmt.name] = term
+            print(f"SMT PROVEN: lemma {stmt.name}")
+        elif result.status == "refuted":
+            cex = ", ".join(f"{k}={v}" for k, v in result.counterexample.items()) or "n/a"
+            msg = f"SMT REFUTED: lemma {stmt.name} | counterexample: {cex}"
+            if self.verify_mode:
+                raise InterpreterError(msg)
+            print(f"WARNING: {msg} (lemma not registered)")
+        else:
+            print(f"LEMMA: '{stmt.name}' unknown; not registered")
+
+    def eval_AssumeStmt(self, stmt: AssumeStmt):
+        """Cite a registered lemma as an assumption for later obligations."""
+        if not self.smt_verify:
+            return
+        if stmt.name not in self.lemmas:
+            raise InterpreterError(
+                f"assume: unknown or unproven lemma '{stmt.name}'")
+        self._assumptions.append(self.lemmas[stmt.name])
+
     def _static_verify_block(self, stmt: VerifyBlockStmt):
         """Statically discharge a verify block's condition with Z3 (Phase 5.1c).
 
-        The condition is translated to SMT and proven with no assumptions
-        (a standalone obligation). A refutation hard-fails under --verify,
-        otherwise warns — consistent with proc-contract verification.
+        The condition is translated to SMT and proven against any assumptions
+        introduced by `assume <lemma>` (proof reuse, Phase 5.1). A refutation
+        hard-fails under --verify, otherwise warns — consistent with
+        proc-contract verification.
         """
         from src.smt import SmtTranslator, prove, SmtUnsupported
         try:
@@ -627,7 +675,7 @@ class Interpreter:
         except SmtUnsupported as e:
             print(f"VERIFY: not statically provable ({e}); deferred to runtime")
             return
-        result = prove([], goal, var_names={**tr.vars, **tr.bound_vars})
+        result = prove(list(self._assumptions), goal, var_names={**tr.vars, **tr.bound_vars})
         if result.proven:
             print("SMT PROVEN: verify block")
         elif result.status == "refuted":

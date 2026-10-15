@@ -14,7 +14,7 @@ from src.ast import (
     VarDeclStmt, ConstDeclStmt, TypeDeclStmt, AssignmentStmt, ProcCallStmt,
     IfStmt, WhileStmt, ForStmt, ReturnStmt, BlockStmt, ExprStmt, SkipStmt, AssertStmt,
     ProbBlockStmt, CausalBlockStmt, VerifyBlockStmt, ProbBindStmt,
-    AlwaysStmt,
+    AlwaysStmt, LemmaDeclStmt, AssumeStmt,
     ProbBlockExpr, GivenExpr,
     QuantifierExpr, KernelLaunchExpr,
     ImportStmt, ExportStmt, ModuleDeclStmt,
@@ -98,7 +98,8 @@ class Parser:
             # Determine if declaration or statement
             if self.current_token.type in (TokenType.VAR, TokenType.CONST, TokenType.TYPE, TokenType.PROC, TokenType.CHAN) or \
                (self.current_token.type == TokenType.ASYNC and self.peek() and self.peek().type == TokenType.PROC) or \
-               (self.current_token.type == TokenType.AT and self.peek() and self.peek().type == TokenType.KERNEL):
+               (self.current_token.type == TokenType.AT and self.peek() and self.peek().type == TokenType.KERNEL) or \
+               (self.current_token.type == TokenType.LEMMA):
                 decl = self.parse_declaration()
                 declarations.append(decl)
             else:
@@ -124,6 +125,8 @@ class Parser:
             return self.parse_async_proc_decl()
         elif t == TokenType.AT:
             return self.parse_attributed_proc_decl()
+        elif t == TokenType.LEMMA:
+            return self.parse_lemma_decl()
         else:
             raise self.error(f"Unexpected token {t.name} in declaration")
 
@@ -363,6 +366,8 @@ class Parser:
             return self.parse_verify_block()
         elif t == TokenType.ALWAYS:
             return self.parse_always_stmt()
+        elif t == TokenType.ASSUME:
+            return self.parse_assume_stmt()
         elif t == TokenType.MODULE:
             return self.parse_module_decl()
         elif t == TokenType.IMPORT:
@@ -563,7 +568,7 @@ class Parser:
         return VerifyBlockStmt(condition=condition, message=message)
 
     def parse_always_stmt(self) -> AlwaysStmt:
-        """Parse a temporal assertion: always <expr> [\"msg\"] ;"""
+        """Parse a temporal assertion: always <expr> ["msg"] ;"""
         self.expect(TokenType.ALWAYS)
         condition = self.parse_expression()
         message = None
@@ -572,6 +577,22 @@ class Parser:
             self.advance()
         self.expect(TokenType.SEMI)
         return AlwaysStmt(condition=condition, message=message)
+
+    def parse_lemma_decl(self) -> LemmaDeclStmt:
+        """Parse a named lemma: lemma <name> : <fact> ;"""
+        self.expect(TokenType.LEMMA)
+        name = self.expect(TokenType.IDENT).value
+        self.expect(TokenType.COLON)
+        condition = self.parse_expression()
+        self.expect(TokenType.SEMI)
+        return LemmaDeclStmt(name=name, condition=condition)
+
+    def parse_assume_stmt(self) -> AssumeStmt:
+        """Parse an assumption: assume <name> ;"""
+        self.expect(TokenType.ASSUME)
+        name = self.expect(TokenType.IDENT).value
+        self.expect(TokenType.SEMI)
+        return AssumeStmt(name=name)
 
     def parse_expression_statement(self) -> Stmt:
         expr = self.parse_expression()

@@ -90,6 +90,7 @@ class TokenType(Enum):
     FORALL = auto()
     EXISTS = auto()
     ALWAYS = auto()
+    LEMMA = auto()
     LAUNCH = auto()
     KERNEL = auto()
     VECTORIZE = auto()
@@ -256,6 +257,7 @@ class Lexer:
         'forall': TokenType.FORALL,
         'exists': TokenType.EXISTS,
         'always': TokenType.ALWAYS,
+        'lemma': TokenType.LEMMA,
         'launch': TokenType.LAUNCH,
         'kernel': TokenType.KERNEL,
         'vectorize': TokenType.VECTORIZE,

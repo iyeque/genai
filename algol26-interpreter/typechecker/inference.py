@@ -28,7 +28,7 @@ from src.ast import (
     VarDeclStmt, ConstDeclStmt, TypeDeclStmt, AssignmentStmt, ProcCallStmt,
     IfStmt, WhileStmt, ForStmt, ReturnStmt, BlockStmt, ExprStmt, SkipStmt, AssertStmt,
     ProbBlockStmt, CausalBlockStmt, VerifyBlockStmt, ProbBindStmt,
-    AlwaysStmt,
+    AlwaysStmt, LemmaDeclStmt, AssumeStmt,
     ImportStmt, ExportStmt, ModuleDeclStmt,
     ProcDeclStmt, Param,
     # Phase 4
@@ -319,6 +319,10 @@ class ConstraintGenerator:
                 elif isinstance(decl, AsyncProcDeclStmt):
                     # Handle async procedure declarations using infer_stmt logic
                     self.infer_stmt(decl)
+                elif isinstance(decl, LemmaDeclStmt):
+                    # A lemma states a boolean fact; check it type-checks.
+                    cond_type = self.infer_expr(decl.condition)
+                    self.unify(decl, cond_type, BOOL_TYPE)
                 else:
                     # Other top-level declarations (e.g., type, import/export) may be ignored here
                     pass
@@ -714,6 +718,9 @@ class ConstraintGenerator:
             else:
                 for s in stmt.statements:
                     self.infer_stmt(s)
+        elif isinstance(stmt, AssumeStmt):
+            # `assume <lemma>` is a proof directive; no runtime/type effect.
+            pass
         elif isinstance(stmt, ProbBindStmt):
             # Binding inside a prob block: identifier ':' distribution_expr ';'
             dist_type = self.infer_expr(stmt.distribution)
