@@ -119,8 +119,8 @@ class ConstraintGenerator:
             'ceil': FunctionType([REAL_TYPE], INT_TYPE),
             'round': FunctionType([REAL_TYPE, INT_TYPE], REAL_TYPE),  # simplified: two args
             'abs': FunctionType([INT_TYPE], INT_TYPE),  # simplified; real overload not handled
-            'len': FunctionType([TypeName('array')], INT_TYPE),  # placeholder; actual will be generic
-            # Polymorphic builtins we'll handle specially in inference: println, print, int, real, char, string, bytes
+            # `len` is registered separately below as a polymorphic scheme
+            # (forall T. array[T] -> int) so it accepts any element type.
             # Distribution builtins
             'bernoulli': FunctionType([REAL_TYPE], DistType(BOOL_TYPE)),
             'normal': FunctionType([REAL_TYPE, REAL_TYPE], DistType(REAL_TYPE)),
@@ -142,6 +142,12 @@ class ConstraintGenerator:
             self.env.extend(name, TypeScheme([], BuiltinType(name)))
         for name in self.device_builtins:
             self.env.extend(name, TypeScheme([], BuiltinType(name)))
+        # `len` is polymorphic: forall T. array[T] -> int. Registering it as a
+        # quantified scheme (rather than a concrete FunctionType) lets it accept
+        # arrays of any element type; instantiate() freshens T per call site.
+        len_t = TypeVar(fresh_type_var())
+        len_scheme = TypeScheme([len_t], FunctionType([ArrayType(len_t)], INT_TYPE))
+        self.env.extend('len', len_scheme)
 
     def add_constraint(self, t1: Type, t2: Type, node=None):
         self.constraints.append((t1, t2, node))

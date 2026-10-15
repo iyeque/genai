@@ -1,0 +1,11 @@
+// Regression: len() must accept arrays of any element type.
+// The builtin's type was a non-generic placeholder that failed to unify with
+// concrete array types like array[] of int / array[] of real.
+begin
+  var ints := [1, 2, 3, 4];
+  var reals := [1.5, 2.5];
+  var strs := ["a", "b", "c"];
+  println(len(ints));    // expect 4
+  println(len(reals));   // expect 2
+  println(len(strs));    // expect 3
+end
