@@ -1,0 +1,11 @@
+// Phase 5.1 VC generation: straight-line block body (single return path).
+proc double_nonneg(n: int) -> int
+  requires n >= 0
+  ensures result >= n
+begin
+  result := n + n;
+end
+
+begin
+  println(double_nonneg(4));   // 8
+end

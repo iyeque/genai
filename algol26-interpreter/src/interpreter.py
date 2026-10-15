@@ -305,13 +305,21 @@ class Interpreter:
 
         Reports proven / refuted (with counterexample) / deferred outcomes.
         A refuted postcondition raises in verify_mode, else warns.
+
+        Expression-bodied procs use verify_proc_contracts; block-bodied procs
+        use verify_block_body (automatic VC generation, Phase 5.1).
         """
         if not _SMT_AVAILABLE:
             print(f"NOTE: static verification unavailable for '{decl.name}' "
                   f"(install z3-solver to enable)")
             return
+        from src.ast import Expr
         try:
-            results = verify_proc_contracts(decl)
+            if isinstance(decl.body, Expr):
+                results = verify_proc_contracts(decl)
+            else:
+                from src.smt import verify_block_body
+                results = verify_block_body(decl)
         except Exception as e:  # never let verification crash a run
             print(f"NOTE: static verification skipped for '{decl.name}': {e}")
             return

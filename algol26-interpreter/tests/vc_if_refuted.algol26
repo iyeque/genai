@@ -1,0 +1,16 @@
+// Phase 5.1 VC generation must CATCH a bad block-bodied contract.
+// This proc's else-branch returns n directly, but claims result > 0 — false for
+// n = 0. VC generation must REFUTE the else-path (counterexample n=0).
+proc bad(n: int) -> int
+  ensures result > 0
+begin
+  if n < 0 then
+    result := -n;
+  else
+    result := n;
+  fi
+end
+
+begin
+  println(bad(3));
+end

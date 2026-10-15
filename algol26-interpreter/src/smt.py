@@ -278,3 +278,119 @@ def verify_proc_contracts(decl):
         pr = prove(assumes, goal, var_names=tr.vars)
         results.append(("ensures", pr, c.message))
     return results
+
+
+def verify_block_body(decl):
+    """Automatic VC generation for block-bodied procs (Phase 5.1).
+
+    Symbolically executes a restricted but common block shape — straight-line
+    code whose control flow is a single top-level if/else where every branch
+    ends in a `result := <expr>` return — and generates one verification
+    condition per return path:
+
+        (AND of requires) ∧ (path conditions to this return)
+            ⟹ (postcondition with `result` := the returned expression)
+
+    Each VC is discharged with Z3. This is the automatic-VC-generation step the
+    roadmap calls for; it covers abs/clamp/max-style functions. Blocks outside
+    this shape (loops, nested calls, multiple statements per branch) are left to
+    runtime checking, reported as deferred.
+
+    Returns a list of (clause_kind, ProofResult-or-None, note) tuples, matching
+    verify_proc_contracts's contract.
+    """
+    from src.ast import (BlockStmt, IfStmt, ReturnStmt, Expr, IdentifierExpr)
+
+    results = []
+    tr = SmtTranslator()
+    for p in decl.params:
+        tr.declare(p.name, _sort_for(p))
+
+    # Preconditions become assumptions (shared by every path).
+    assumes = []
+    ok = True
+    for c in decl.preconditions:
+        try:
+            assumes.append(tr.translate(c.condition))
+        except SmtUnsupported as e:
+            results.append(("requires", None, f"not translatable: {e}"))
+            ok = False
+    if decl.preconditions and ok:
+        results.append(("requires", None, "assumed"))
+
+    body = decl.body
+    if not isinstance(body, BlockStmt):
+        results.append(("ensures", None, "not a block body"))
+        return results
+
+    # Collect return paths: (path_conditions, returned_expr). We support a
+    # block whose statements are a single top-level if/else (each branch a
+    # single ReturnStmt) or a straight-line block ending in a ReturnStmt.
+    def _branch_return(stmt):
+        """If `stmt` is a block whose only statement is a return, return it."""
+        if isinstance(stmt, ReturnStmt):
+            return stmt
+        if isinstance(stmt, BlockStmt) and len(stmt.statements) == 1 \
+                and isinstance(stmt.statements[0], ReturnStmt):
+            return stmt.statements[0]
+        return None
+
+    paths = []  # list of (list_of_path_condition_exprs, returned_expr)
+    supported = True
+
+    if len(body.statements) == 1 and isinstance(body.statements[0], IfStmt):
+        ifs = body.statements[0]
+        then_ret = _branch_return(ifs.then_branch)
+        else_ret = _branch_return(ifs.else_branch) if ifs.else_branch else None
+        if then_ret is None or else_ret is None:
+            supported = False
+        else:
+            # then-path: condition holds; else-path: condition negated.
+            paths.append(([ifs.condition], then_ret.value))
+            from src.ast import UnaryOpExpr
+            neg = UnaryOpExpr(op=_not_token(), operand=ifs.condition)
+            paths.append(([neg], else_ret.value))
+    else:
+        # Straight-line: last statement must be a return.
+        last = body.statements[-1] if body.statements else None
+        ret = _branch_return(last) if last is not None else None
+        if ret is None:
+            supported = False
+        else:
+            paths.append(([], ret.value))
+
+    if not supported:
+        for c in decl.postconditions:
+            results.append(("ensures", None,
+                            "block body shape unsupported: deferred to runtime"))
+        return results
+
+    # Discharge one VC per (postcondition, path).
+    for c in decl.postconditions:
+        discharged_any = False
+        for path_conds, ret_expr in paths:
+            path_tr = SmtTranslator()
+            for p in decl.params:
+                path_tr.declare(p.name, _sort_for(p))
+            path_assumes = list(assumes)
+            try:
+                for pc in path_conds:
+                    path_assumes.append(path_tr.translate(pc))
+                # Bind `result` to the returned expression for this path.
+                path_tr.vars["result"] = path_tr.translate(ret_expr)
+                goal = path_tr.translate(c.condition)
+            except SmtUnsupported as e:
+                results.append(("ensures", None, f"path not translatable: {e}"))
+                continue
+            pr = prove(path_assumes, goal, var_names=path_tr.vars)
+            results.append(("ensures", pr, c.message))
+            discharged_any = True
+        if not discharged_any:
+            results.append(("ensures", None, "no translatable path"))
+    return results
+
+
+def _not_token():
+    """A synthetic NOT token for negating a path condition."""
+    from src.lexer import Token, TokenType
+    return Token(TokenType.NOT, "not", 0, 0)

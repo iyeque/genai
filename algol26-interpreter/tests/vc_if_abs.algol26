@@ -1,0 +1,18 @@
+// Phase 5.1 VC generation: block-bodied proc with a conditional.
+// Automatic VC generation symbolically executes the block: for each branch of
+// an if/else it generates a verification condition (path-condition ⟹
+// postcondition) and discharges it with Z3. abs here is provable for all n.
+proc absv(n: int) -> int
+  ensures result >= 0
+begin
+  if n < 0 then
+    result := -n;
+  else
+    result := n;
+  fi
+end
+
+begin
+  println(absv(-5));   // 5
+  println(absv(7));    // 7
+end
