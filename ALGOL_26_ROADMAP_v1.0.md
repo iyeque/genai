@@ -27,7 +27,12 @@
     - ⬜ GPU backend — deferred: no GPU/CUDA on the dev box to validate against. CPU reference backend is the designed swap point.
     - ⬜ Auto-scheduling / multi-device partitioning — meaningful once >1 real backend exists.
   - ⬜ 5.1 remainder — Automatic VC generation, proof automation toward 70% coverage, temporal assertions, model checking.
-  - ⬜ 5.3 — Self-modifying code sandbox.
+  - ✅ 5.3 — Self-modifying code sandbox (core) — 2026-10-14:
+    - ✅ Isolated evaluation namespace (disjoint from host globals) + append-only audit log of every effect.
+    - ✅ Immutable versioned definitions; checkpoint/rollback rewinds current pointer without erasing history.
+    - ✅ Verification-gated `sb_modify`: installs generated proc source only if contracts pass Z3; refuted -> rejected, prior version preserved (auto-rollback), rejection + counterexample logged.
+    - ⬜ Bytecode compilation of generated code (no separate VM yet).
+    - ⬜ OS-level capability denial (no host resources to fence on this box).
 - Repository structure:
   ```
   genai/
