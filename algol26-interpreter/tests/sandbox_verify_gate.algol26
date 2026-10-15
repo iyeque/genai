@@ -1,0 +1,22 @@
+// Phase 5.3: verification-gated self-modification.
+// sb_modify installs generated proc source ONLY if its contracts pass SMT
+// verification. A refuted contract is rejected — the modification is not
+// applied (auto-rollback), the prior version stays current, and the rejection
+// is recorded in the audit log. This is the roadmap's "re-verify modified code
+// automatically; prove modifications preserve invariants" requirement.
+@kernel(gpu) proc _unused(x: int) -> int = x;   // placeholder to satisfy parser
+
+begin
+  var sb := sandbox();
+
+  // A GOOD modification: succ's contract is provable -> accepted.
+  var v1 := sb_modify(sb, "succ",
+    "proc succ(n: int) -> int requires n >= 0 ensures result >= 1 = n + 1;");
+  println(v1);                    // expect 1 (installed as version 1)
+
+  // A BAD modification: identity does NOT satisfy result >= 1 for n=0 ->
+  // refuted -> rejected, prior version stays current.
+  var v2 := sb_modify(sb, "succ",
+    "proc succ(n: int) -> int requires n >= 0 ensures result >= 1 = n;");
+  println(v2);                    // expect 0 (rejected, no new version)
+end

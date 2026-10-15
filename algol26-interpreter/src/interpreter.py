@@ -445,6 +445,15 @@ class Interpreter:
             sb = self.eval(expr.args[0])
             src = self.eval(expr.args[1])
             return sb.eval_source(src, self)
+        if isinstance(expr.callee, IdentifierExpr) and expr.callee.name == 'sb_modify':
+            if len(expr.args) != 3:
+                raise InterpreterError("sb_modify expects (sandbox, name, source)")
+            sb = self.eval(expr.args[0])
+            name = self.eval(expr.args[1])
+            src = self.eval(expr.args[2])
+            # Supply the SMT verifier so modifications are gated on proof.
+            verifier = verify_proc_contracts if _SMT_AVAILABLE else None
+            return sb.modify(name, src, verifier=verifier)
         callee = self.eval(expr.callee)
         args = [self.eval(arg) for arg in expr.args]
         if callable(callee):

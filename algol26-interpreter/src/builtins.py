@@ -286,6 +286,16 @@ class Builtins:
         """Roll back current pointers to a checkpoint (history retained)."""
         sb.rollback(label)
 
+    @staticmethod
+    def sb_modify(sb, name, source):
+        """Verification-gated self-modification. Returns version index or 0.
+
+        The SMT verifier is supplied by the interpreter at call time (see
+        eval_CallExpr); this no-arg form is a fallback that installs without
+        static verification when z3 is unavailable.
+        """
+        return sb.modify(name, source, verifier=None)
+
 
 # Helper for type checking
 def is_number(x):

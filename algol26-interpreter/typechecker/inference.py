@@ -133,7 +133,8 @@ class ConstraintGenerator:
         self.device_builtins = {'to_device', 'from_device', 'graph', 'transfer', 'run', 'materialize'}
         # Phase 5.3 sandbox builtins: return types handled in CallExpr inference.
         self.sandbox_builtins = {'sandbox', 'audit_size', 'eval_in', 'sb_define',
-                                 'sb_checkpoint', 'sb_rollback', 'sb_versions', 'sb_current'}
+                                 'sb_checkpoint', 'sb_rollback', 'sb_versions', 'sb_current',
+                                 'sb_modify'}
         # Add primitive types to env
         for name, typ in [('int', INT_TYPE), ('real', REAL_TYPE), ('bool', BOOL_TYPE),
                           ('char', CHAR_TYPE), ('string', STRING_TYPE), ('void', VOID_TYPE)]:
@@ -522,6 +523,8 @@ class ConstraintGenerator:
                     return ArrayType(TypeVar(fresh_type_var()))
                 elif callee_type.name == 'sb_current':
                     return TypeVar(fresh_type_var())
+                elif callee_type.name == 'sb_modify':
+                    return INT_TYPE  # version index, or 0 if rejected
                 elif callee_type.name in ('sb_checkpoint', 'sb_rollback'):
                     return VOID_TYPE
                 else:

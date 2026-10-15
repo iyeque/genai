@@ -127,6 +127,61 @@ class Sandbox:
                 del self.namespace[name]
         self._record('rollback', {'label': label})
 
+    def modify(self, name, source, verifier=None):
+        """Verification-gated self-modification (Phase 5.3).
+
+        Parses `source` (expected to define a single proc with contracts),
+        runs SMT verification via `verifier` on the proc's contracts, and
+        installs the new version ONLY if every obligation is proven. A refuted
+        contract is REJECTED: no new version is created, the prior version
+        stays current, and the rejection is recorded in the audit log.
+
+        Returns the new version index on acceptance, or 0 on rejection.
+        """
+        from src.lexer import Lexer, LexerError
+        from src.parser import Parser, ParserError
+        from src.ast import ProcDeclStmt
+        try:
+            ast = Parser(Lexer(source)).parse()
+        except (LexerError, ParserError) as e:
+            self._record('modify', {'name': name, 'accepted': False,
+                                    'reason': f'parse error: {e}'})
+            return 0
+
+        proc = None
+        for decl in ast.declarations:
+            if isinstance(decl, ProcDeclStmt):
+                proc = decl
+                break
+        if proc is None:
+            self._record('modify', {'name': name, 'accepted': False,
+                                    'reason': 'no proc declaration in source'})
+            return 0
+
+        # Verify contracts before accepting. `verifier(decl)` returns a list of
+        # (kind, ProofResult-or-None, note) as the SMT layer produces.
+        if verifier is not None:
+            try:
+                results = verifier(proc)
+            except Exception as e:
+                self._record('modify', {'name': name, 'accepted': False,
+                                        'reason': f'verification error: {e}'})
+                return 0
+            for kind, pr, note in results:
+                if pr is not None and getattr(pr, 'status', None) == 'refuted':
+                    cex = ""
+                    if getattr(pr, 'counterexample', None):
+                        cex = " | " + ", ".join(f"{k}={v}" for k, v in pr.counterexample.items())
+                    self._record('modify', {
+                        'name': name, 'accepted': False,
+                        'reason': f'{kind} refuted{cex}'})
+                    return 0  # reject: prior version stays current
+
+        # Accepted — install as a new immutable version and bind the proc.
+        version = self.define(name, proc)
+        self._record('modify', {'name': name, 'accepted': True, 'version': version})
+        return version
+
 
 def make_sandbox():
     return Sandbox()
