@@ -28,8 +28,9 @@
     - ⬜ Auto-scheduling / multi-device partitioning — meaningful once >1 real backend exists.
   - 🔄 5.1 remainder — Automatic VC generation + proof automation:
     - ✅ Automatic VC generation for block-bodied procs (if/else + straight-line): one VC per return path, discharged with Z3 (2026-10-14).
-    - ⬜ Proof automation toward 70% coverage (lemma libraries, tactic hints).
-    - ⬜ Temporal assertions (`always { ... }`), model checking.
+    - ✅ Temporal assertions (`always P;`) discharged with Z3 as universal invariants (2026-10-14).
+    - ✅ Proof automation: named `lemma` declarations with proof reuse via `assume` (2026-10-14). Refuted lemmas not registered; unknown-lemma assume errors.
+    - ⬜ Model checking (state-space exploration) — needs a state-transition model not yet present.
   - ✅ 5.3 — Self-modifying code sandbox (core) — 2026-10-14:
     - ✅ Isolated evaluation namespace (disjoint from host globals) + append-only audit log of every effect.
     - ✅ Immutable versioned definitions; checkpoint/rollback rewinds current pointer without erasing history.
