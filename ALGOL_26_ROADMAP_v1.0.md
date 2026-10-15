@@ -19,9 +19,14 @@
 - 🔄 Phase 5 (Formal Verification + Advanced Features) — in progress:
   - ✅ 5.1a — Pre/postconditions (`requires`/`ensures`) and loop `invariant`s, runtime-checked (2026-10).
   - ✅ 5.1b — Static SMT verification of proc contracts via Z3 (`--smt`): proven/refuted/deferred, `--verify` hard-fails on refutation (2026-10).
-  - ✅ 5.1c — Static SMT verification of `verify` blocks + `forall`/`exists` quantifiers and `==>` implication (2026-10-14). Full `--smt` suite 30/30.
+  - ✅ 5.1c — Static SMT verification of `verify` blocks + `forall`/`exists` quantifiers and `==>` implication (2026-10-14). Full `--smt` suite 36/36.
+  - ✅ 5.1 fix — `len()` made polymorphic (`forall T. array[T] -> int`), was a non-generic placeholder (2026-10-14).
+  - 🔄 5.2 — Hardware acceleration primitives — CPU reference backend + compute graph shipped:
+    - ✅ Device abstraction (`device<T>`, `DeviceArray`), `@kernel(gpu)`/`@vectorize(width)` attributes, `to_device`/`from_device`/`launch`.
+    - ✅ Lazy heterogeneous `ComputeGraph` (`graph`/`transfer`/`run`/`materialize`) with data-movement minimization (intermediates stay on-device; one host boundary per pipeline) and memoized shared nodes.
+    - ⬜ GPU backend — deferred: no GPU/CUDA on the dev box to validate against. CPU reference backend is the designed swap point.
+    - ⬜ Auto-scheduling / multi-device partitioning — meaningful once >1 real backend exists.
   - ⬜ 5.1 remainder — Automatic VC generation, proof automation toward 70% coverage, temporal assertions, model checking.
-  - ⬜ 5.2 — Hardware acceleration primitives (GPU kernels, SIMD).
   - ⬜ 5.3 — Self-modifying code sandbox.
 - Repository structure:
   ```
