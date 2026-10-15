@@ -1,0 +1,16 @@
+// Phase 5.3: versioned definitions with checkpoint/rollback.
+// Each define creates a new immutable version (old versions retained). A
+// checkpoint captures the current version indices; rollback rewinds the
+// current pointers without erasing history. Here we define a value, checkpoint,
+// redefine it, then roll back and confirm the earlier version is current again.
+begin
+  var sb := sandbox();
+  sb_define(sb, "x", 10);          // version 1
+  sb_checkpoint(sb, "cp1");
+  sb_define(sb, "x", 20);          // version 2
+  sb_define(sb, "x", 30);          // version 3
+  println(sb_versions(sb, "x"));   // expect [10, 20, 30] (history retained)
+  sb_rollback(sb, "cp1");
+  println(sb_versions(sb, "x"));   // still [10, 20, 30] — immutable history
+  println(sb_current(sb, "x"));    // expect 10 (rolled back to v1)
+end

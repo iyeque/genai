@@ -438,6 +438,13 @@ class Interpreter:
             raise InterpreterError(f"'{callee}' is not callable")
 
     def eval_CallExpr(self, expr: CallExpr) -> Any:
+        # Sandbox builtins that need the running interpreter for isolated eval.
+        if isinstance(expr.callee, IdentifierExpr) and expr.callee.name == 'eval_in':
+            if len(expr.args) != 2:
+                raise InterpreterError("eval_in expects (sandbox, source)")
+            sb = self.eval(expr.args[0])
+            src = self.eval(expr.args[1])
+            return sb.eval_source(src, self)
         callee = self.eval(expr.callee)
         args = [self.eval(arg) for arg in expr.args]
         if callable(callee):

@@ -131,6 +131,9 @@ class ConstraintGenerator:
         # Phase 5.2 device builtins: return types depend on arguments, handled
         # specially in CallExpr inference (to_device/from_device).
         self.device_builtins = {'to_device', 'from_device', 'graph', 'transfer', 'run', 'materialize'}
+        # Phase 5.3 sandbox builtins: return types handled in CallExpr inference.
+        self.sandbox_builtins = {'sandbox', 'audit_size', 'eval_in', 'sb_define',
+                                 'sb_checkpoint', 'sb_rollback', 'sb_versions', 'sb_current'}
         # Add primitive types to env
         for name, typ in [('int', INT_TYPE), ('real', REAL_TYPE), ('bool', BOOL_TYPE),
                           ('char', CHAR_TYPE), ('string', STRING_TYPE), ('void', VOID_TYPE)]:
@@ -141,6 +144,8 @@ class ConstraintGenerator:
         for name in self.dynamic_builtins:
             self.env.extend(name, TypeScheme([], BuiltinType(name)))
         for name in self.device_builtins:
+            self.env.extend(name, TypeScheme([], BuiltinType(name)))
+        for name in self.sandbox_builtins:
             self.env.extend(name, TypeScheme([], BuiltinType(name)))
         # `len` is polymorphic: forall T. array[T] -> int. Registering it as a
         # quantified scheme (rather than a concrete FunctionType) lets it accept
@@ -503,6 +508,22 @@ class ConstraintGenerator:
                     if isinstance(nt, DeviceType):
                         return ArrayType(nt.element_type)
                     return nt
+                elif callee_type.name == 'sandbox':
+                    return TypeName('SandboxHandle')
+                elif callee_type.name == 'eval_in':
+                    # eval_in(sandbox, source) -> int (value of last statement;
+                    # we type it loosely as int for the tracer-bolt slice).
+                    return INT_TYPE
+                elif callee_type.name == 'audit_size':
+                    return INT_TYPE
+                elif callee_type.name == 'sb_define':
+                    return INT_TYPE  # returns the new version index
+                elif callee_type.name == 'sb_versions':
+                    return ArrayType(TypeVar(fresh_type_var()))
+                elif callee_type.name == 'sb_current':
+                    return TypeVar(fresh_type_var())
+                elif callee_type.name in ('sb_checkpoint', 'sb_rollback'):
+                    return VOID_TYPE
                 else:
                     # Unknown builtin, return fresh var
                     return ret_type

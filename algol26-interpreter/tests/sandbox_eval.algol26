@@ -1,0 +1,9 @@
+// Phase 5.3 tracer bullet: self-modifying code sandbox.
+// A sandbox evaluates generated code in an isolated namespace and records an
+// audit log of every effect. Here we evaluate a statement in the sandbox and
+// inspect the recorded audit trail — proving isolation + observability.
+begin
+  var sb := sandbox();
+  eval_in(sb, "println(1 + 2 * 3);");
+  println(audit_size(sb));    // expect 1 (one logged effect)
+end

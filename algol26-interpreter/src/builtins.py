@@ -249,6 +249,43 @@ class Builtins:
         """Execute the graph chain up to `node` and return a host list."""
         return g.materialize(node)
 
+    # Phase 5.3: self-modifying code sandbox
+    @staticmethod
+    def sandbox():
+        """Create a fresh isolated sandbox handle."""
+        import src.sandbox as _sandbox
+        return _sandbox.make_sandbox()
+
+    @staticmethod
+    def audit_size(sb):
+        """Number of effects recorded in a sandbox's audit log."""
+        return sb.audit_size()
+
+    @staticmethod
+    def sb_define(sb, name, value):
+        """Install a versioned definition in the sandbox; returns version index."""
+        return sb.define(name, value)
+
+    @staticmethod
+    def sb_versions(sb, name):
+        """Immutable version history of a sandbox definition."""
+        return sb.versions(name)
+
+    @staticmethod
+    def sb_current(sb, name):
+        """Current value of a sandbox definition."""
+        return sb.namespace.get(name)
+
+    @staticmethod
+    def sb_checkpoint(sb, label):
+        """Checkpoint current version indices under a label."""
+        sb.checkpoint(label)
+
+    @staticmethod
+    def sb_rollback(sb, label):
+        """Roll back current pointers to a checkpoint (history retained)."""
+        sb.rollback(label)
+
 
 # Helper for type checking
 def is_number(x):
