@@ -28,6 +28,7 @@ from src.ast import (
     VarDeclStmt, ConstDeclStmt, TypeDeclStmt, AssignmentStmt, ProcCallStmt,
     IfStmt, WhileStmt, ForStmt, ReturnStmt, BlockStmt, ExprStmt, SkipStmt, AssertStmt,
     ProbBlockStmt, CausalBlockStmt, VerifyBlockStmt, ProbBindStmt,
+    AlwaysStmt,
     ImportStmt, ExportStmt, ModuleDeclStmt,
     ProcDeclStmt, Param,
     # Phase 4
@@ -705,9 +706,9 @@ class ConstraintGenerator:
         elif isinstance(stmt, AssertStmt):
             cond_type = self.infer_expr(stmt.condition)
             self.unify(stmt, cond_type, BOOL_TYPE)
-        elif isinstance(stmt, (ProbBlockStmt, CausalBlockStmt, VerifyBlockStmt)):
+        elif isinstance(stmt, (ProbBlockStmt, CausalBlockStmt, VerifyBlockStmt, AlwaysStmt)):
             # For now, treat as block (may contain special semantics later)
-            if isinstance(stmt, VerifyBlockStmt):
+            if isinstance(stmt, (VerifyBlockStmt, AlwaysStmt)):
                 cond_type = self.infer_expr(stmt.condition)
                 self.unify(stmt, cond_type, BOOL_TYPE)
             else:

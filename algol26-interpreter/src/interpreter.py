@@ -18,6 +18,7 @@ from src.ast import (
     ProcDeclStmt, Param, ProbBindStmt, ProbExpr, SampleExpr, GivenExpr, ProbBlockExpr,
     ChanDeclStmt, SendStmt, ReceiveExpr, SelectStmt, AsyncProcDeclStmt,
     ProbBlockStmt, CausalBlockStmt, VerifyBlockStmt,
+    AlwaysStmt,
     KernelLaunchExpr,
     Token,
 )
@@ -578,6 +579,39 @@ class Interpreter:
                 raise InterpreterError(f"VERIFICATION FAILED: {msg}")
             else:
                 print(f"VERIFICATION FAILED: {msg}")
+
+    def eval_AlwaysStmt(self, stmt: AlwaysStmt):
+        """Temporal assertion `always { P }` (Phase 5.1).
+
+        Under --smt, P is discharged as a standalone validity obligation with
+        Z3 (an invariant that holds for all inputs). Without --smt it is a
+        no-op: `always` states a static property with no runtime effect.
+        """
+        if self.smt_verify:
+            self._static_verify_always(stmt)
+        # No runtime effect otherwise.
+
+    def _static_verify_always(self, stmt: AlwaysStmt):
+        """Discharge a temporal invariant with Z3, like a verify block."""
+        from src.smt import SmtTranslator, prove, SmtUnsupported
+        try:
+            tr = SmtTranslator()
+            goal = tr.translate(stmt.condition)
+        except SmtUnsupported as e:
+            print(f"ALWAYS: not statically provable ({e}); deferred")
+            return
+        result = prove([], goal, var_names={**tr.vars, **tr.bound_vars})
+        if result.proven:
+            print("SMT PROVEN: always (invariant holds)")
+        elif result.status == "refuted":
+            msg = stmt.message or "invariant violated"
+            cex = ", ".join(f"{k}={v}" for k, v in result.counterexample.items()) or "n/a"
+            line = f"SMT REFUTED: always | {msg} | counterexample: {cex}"
+            if self.verify_mode:
+                raise InterpreterError(line)
+            print(f"WARNING: {line}")
+        else:
+            print("ALWAYS: SMT returned unknown; deferred")
 
     def _static_verify_block(self, stmt: VerifyBlockStmt):
         """Statically discharge a verify block's condition with Z3 (Phase 5.1c).

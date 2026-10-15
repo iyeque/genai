@@ -345,6 +345,19 @@ class VerifyBlockStmt(Stmt):
 
 
 @dataclass
+class AlwaysStmt(Stmt):
+    """Temporal assertion: always { P } — P is an invariant that holds
+    universally (Phase 5.1). Statically discharged with Z3 like a verify block;
+    without a state-transition model the checkable meaning is validity of P.
+    """
+    condition: Expr
+    message: Optional[str] = None
+
+    def __post_init__(self):
+        pass
+
+
+@dataclass
 class ProbBindStmt(Stmt):
     """Inside a prob block: binds an identifier to a distribution."""
     identifier: str

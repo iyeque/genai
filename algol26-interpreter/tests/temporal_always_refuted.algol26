@@ -1,0 +1,7 @@
+// Phase 5.1 temporal assertion must CATCH a false invariant.
+// "n >= 0 ==> n - 1 >= 0" is false at n=0; Z3 must refute with that witness.
+always forall n: int. n >= 0 ==> n - 1 >= 0;
+
+begin
+  println("unreachable if --verify");
+end

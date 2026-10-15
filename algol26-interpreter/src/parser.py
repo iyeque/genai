@@ -14,6 +14,7 @@ from src.ast import (
     VarDeclStmt, ConstDeclStmt, TypeDeclStmt, AssignmentStmt, ProcCallStmt,
     IfStmt, WhileStmt, ForStmt, ReturnStmt, BlockStmt, ExprStmt, SkipStmt, AssertStmt,
     ProbBlockStmt, CausalBlockStmt, VerifyBlockStmt, ProbBindStmt,
+    AlwaysStmt,
     ProbBlockExpr, GivenExpr,
     QuantifierExpr, KernelLaunchExpr,
     ImportStmt, ExportStmt, ModuleDeclStmt,
@@ -360,6 +361,8 @@ class Parser:
             return self.parse_causal_block()
         elif t == TokenType.VERIFY:
             return self.parse_verify_block()
+        elif t == TokenType.ALWAYS:
+            return self.parse_always_stmt()
         elif t == TokenType.MODULE:
             return self.parse_module_decl()
         elif t == TokenType.IMPORT:
@@ -558,6 +561,17 @@ class Parser:
             self.advance()
         self.expect(TokenType.SEMI)
         return VerifyBlockStmt(condition=condition, message=message)
+
+    def parse_always_stmt(self) -> AlwaysStmt:
+        """Parse a temporal assertion: always <expr> [\"msg\"] ;"""
+        self.expect(TokenType.ALWAYS)
+        condition = self.parse_expression()
+        message = None
+        if self.match(TokenType.STRING):
+            message = self.current_token.value
+            self.advance()
+        self.expect(TokenType.SEMI)
+        return AlwaysStmt(condition=condition, message=message)
 
     def parse_expression_statement(self) -> Stmt:
         expr = self.parse_expression()

@@ -1,0 +1,9 @@
+// Phase 5.1 temporal assertions: `always P;` asserts P is an invariant that
+// holds universally. Without a state-transition model, the checkable meaning is
+// validity: P must be true for all inputs. Discharged with Z3 like a verify
+// block. A true invariant proves; a false one is refuted with a counterexample.
+always forall n: int. n >= 0 ==> n + 1 >= 1;
+
+begin
+  println("temporal invariant holds");
+end
