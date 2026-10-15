@@ -1,0 +1,16 @@
+// Phase 5.2: compute graph reuses shared subexpressions and keeps
+// intermediates on-device. A diamond graph (one input feeding two kernels,
+// then combined) must run each shared node once. Correctness of the fused
+// result is the observable guarantee.
+@kernel(gpu) proc inc(x: int) -> int = x + 1;
+@kernel(gpu) proc sq(x: int) -> int = x * x;
+
+begin
+  var g := graph();
+  var a := transfer(g, [1, 2, 3, 4]);
+  // Diamond: a feeds both inc and sq; materialize each branch.
+  var b := run(g, inc, a);
+  var c := run(g, sq, a);
+  println(materialize(g, b));   // expect [2, 3, 4, 5]
+  println(materialize(g, c));   // expect [1, 4, 9, 16]
+end

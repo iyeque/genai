@@ -1,0 +1,19 @@
+// Phase 5.2: heterogeneous compute graph with data-movement minimization.
+// A graph chains device ops (transfers + kernel launches) and executes them
+// with minimal host<->device movement: an intermediate that is only consumed
+// by another device op stays on-device and is never copied back to host.
+//
+// Two-stage pipeline inc then dbl over one input. The middle value must NOT
+// round-trip to host between stages — the graph fuses the launches. The final
+// result comes back to host only once, at materialize().
+@kernel(gpu) proc inc(x: int) -> int = x + 1;
+@kernel(gpu) proc dbl(x: int) -> int = x * 2;
+
+begin
+  var g := graph();
+  var a := transfer(g, [1, 2, 3]);   // host -> device
+  var b := run(g, inc, a);           // device op (stays on device)
+  var c := run(g, dbl, b);           // device op (stays on device)
+  var out := materialize(g, c);      // device -> host, once
+  println(out);                       // expect [4, 6, 8]
+end

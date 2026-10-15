@@ -130,7 +130,7 @@ class ConstraintGenerator:
         self.dynamic_builtins = {'println', 'print', 'int', 'real', 'char', 'string', 'bytes', 'sample', 'infer'}
         # Phase 5.2 device builtins: return types depend on arguments, handled
         # specially in CallExpr inference (to_device/from_device).
-        self.device_builtins = {'to_device', 'from_device'}
+        self.device_builtins = {'to_device', 'from_device', 'graph', 'transfer', 'run', 'materialize'}
         # Add primitive types to env
         for name, typ in [('int', INT_TYPE), ('real', REAL_TYPE), ('bool', BOOL_TYPE),
                           ('char', CHAR_TYPE), ('string', STRING_TYPE), ('void', VOID_TYPE)]:
@@ -476,6 +476,33 @@ class ConstraintGenerator:
                     if isinstance(at, DeviceType):
                         return ArrayType(at.element_type)
                     return at
+                elif callee_type.name == 'graph':
+                    # graph() -> a fresh compute-graph handle.
+                    return TypeName('GraphHandle')
+                elif callee_type.name == 'transfer':
+                    # transfer(g, host_array) -> device<elem>
+                    if len(arg_types) < 2:
+                        raise TypeCheckError("transfer expects (graph, array)", expr)
+                    at = arg_types[1]
+                    elem = at.element_type if isinstance(at, ArrayType) else TypeVar(fresh_type_var())
+                    return DeviceType(elem)
+                elif callee_type.name == 'run':
+                    # run(g, kernel, device_node) -> device<T> (element type preserved)
+                    if len(arg_types) != 3:
+                        raise TypeCheckError("run expects (graph, kernel, node)", expr)
+                    nt = arg_types[2]
+                    if isinstance(nt, DeviceType):
+                        return nt
+                    elem = nt.element_type if isinstance(nt, ArrayType) else TypeVar(fresh_type_var())
+                    return DeviceType(elem)
+                elif callee_type.name == 'materialize':
+                    # materialize(g, device_node) -> array<T> (host array)
+                    if len(arg_types) != 2:
+                        raise TypeCheckError("materialize expects (graph, node)", expr)
+                    nt = arg_types[1]
+                    if isinstance(nt, DeviceType):
+                        return ArrayType(nt.element_type)
+                    return nt
                 else:
                     # Unknown builtin, return fresh var
                     return ret_type

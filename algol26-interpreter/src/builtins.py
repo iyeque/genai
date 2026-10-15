@@ -227,6 +227,28 @@ class Builtins:
         import src.device as _device
         return _device.from_device(device_array)
 
+    # Phase 5.2: heterogeneous compute graph (lazy, data-movement minimizing)
+    @staticmethod
+    def graph():
+        """Create a fresh compute graph handle."""
+        import src.device as _device
+        return _device.graph()
+
+    @staticmethod
+    def transfer(g, data, device="gpu"):
+        """Record a host -> device transfer on graph `g`; returns a lazy node."""
+        return g.transfer(data, device=device)
+
+    @staticmethod
+    def run(g, kernel_fn, node):
+        """Record a kernel launch over a graph node on graph `g` (lazy)."""
+        return g.launch(kernel_fn, node)
+
+    @staticmethod
+    def materialize(g, node):
+        """Execute the graph chain up to `node` and return a host list."""
+        return g.materialize(node)
+
 
 # Helper for type checking
 def is_number(x):
