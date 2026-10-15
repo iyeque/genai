@@ -26,7 +26,10 @@
     - ✅ Lazy heterogeneous `ComputeGraph` (`graph`/`transfer`/`run`/`materialize`) with data-movement minimization (intermediates stay on-device; one host boundary per pipeline) and memoized shared nodes.
     - ⬜ GPU backend — deferred: no GPU/CUDA on the dev box to validate against. CPU reference backend is the designed swap point.
     - ⬜ Auto-scheduling / multi-device partitioning — meaningful once >1 real backend exists.
-  - ⬜ 5.1 remainder — Automatic VC generation, proof automation toward 70% coverage, temporal assertions, model checking.
+  - 🔄 5.1 remainder — Automatic VC generation + proof automation:
+    - ✅ Automatic VC generation for block-bodied procs (if/else + straight-line): one VC per return path, discharged with Z3 (2026-10-14).
+    - ⬜ Proof automation toward 70% coverage (lemma libraries, tactic hints).
+    - ⬜ Temporal assertions (`always { ... }`), model checking.
   - ✅ 5.3 — Self-modifying code sandbox (core) — 2026-10-14:
     - ✅ Isolated evaluation namespace (disjoint from host globals) + append-only audit log of every effect.
     - ✅ Immutable versioned definitions; checkpoint/rollback rewinds current pointer without erasing history.
