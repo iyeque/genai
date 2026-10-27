@@ -1,0 +1,13 @@
+proc add(a: int, b: int) -> int
+begin
+  result := a + b;
+end
+
+var x: int := 5;
+var y: int := 7;
+println(add(x, y));
+if x < y then
+  println("less");
+else
+  println("not less");
+fi

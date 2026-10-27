@@ -49,7 +49,16 @@ def main():
             sys.exit(1)
 
         interpreter = Interpreter(verify_mode=verify_mode, smt_verify=smt_verify)
-        result = interpreter.eval(ast)
+        # --bytecode runs the program through the bytecode VM instead of the tree-walker
+        bytecode_mode = '--bytecode' in sys.argv[2:]
+        if bytecode_mode:
+            from src.bytecode import BytecodeCompiler, BytecodeVM
+            compiler = BytecodeCompiler()
+            code = compiler.compile_program(ast)
+            vm = BytecodeVM(host_interpreter=interpreter)
+            result = vm.run(code)
+        else:
+            result = interpreter.eval(ast)
     except InterpreterError as e:
         print(f"Runtime error: {e}")
         sys.exit(1)
