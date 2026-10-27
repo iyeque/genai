@@ -35,7 +35,7 @@
     - ✅ Isolated evaluation namespace (disjoint from host globals) + append-only audit log of every effect.
     - ✅ Immutable versioned definitions; checkpoint/rollback rewinds current pointer without erasing history.
     - ✅ Verification-gated `sb_modify`: installs generated proc source only if contracts pass Z3; refuted -> rejected, prior version preserved (auto-rollback), rejection + counterexample logged.
-    - ⬜ Bytecode compilation of generated code (no separate VM yet).
+    - ⬜ Bytecode compilation of generated code (no separate VM yet). → DONE: src/bytecode.py stack-based compiler+VM, --bytecode flag (2026-10-24).
     - ⬜ OS-level capability denial (no host resources to fence on this box).
 - Repository structure:
   ```
