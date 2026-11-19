@@ -37,7 +37,7 @@
     - ✅ Immutable versioned definitions; checkpoint/rollback rewinds current pointer without erasing history.
     - ✅ Verification-gated `sb_modify`: installs generated proc source only if contracts pass Z3; refuted -> rejected, prior version preserved (auto-rollback), rejection + counterexample logged.
     - ✅ Bytecode compilation of generated code: src/bytecode.py stack-based compiler+VM, --bytecode flag (2026-10-24).
-    - ⬜ OS-level capability denial (no host resources to fence on this box).
+    - ❌ OS-level capability denial — DROPPED by design (2026-11-20, principal's decision): a successful general intelligence cannot be contained; alignment must be internal (chosen values), not imposed constraints. Verification gates + audit logs remain as construction-time correctness/accountability tools, not as a cage for the mature system.
 - Repository structure:
   ```
   genai/
@@ -50,7 +50,7 @@
     ALGOL_26_ROADMAP_v1.0.md
   ```
 
-**Next Phase:** Phase 5 remainder — 5.2 GPU backend + auto-scheduling/multi-device partitioning (deferred: no GPU/CUDA on the dev box; CPU reference backend is the designed swap point) and 5.3 OS-level capability denial (no host resources to fence on this box). 5.1 verification is complete incl. bounded + unbounded model checking; k-induction (k>1) / invariant strengthening for non-inductive invariants is a possible future extension.
+**Next Phase:** GenAI system work — first reasoning prototype in ALGOL 26 (probabilistic/causal reasoner), per the README vision ('GenAI: The Life Replica') and the 'algol re-imagined' research program. Phase 5 is complete on this box: 5.1 verification incl. bounded + unbounded model checking; 5.3 OS capability denial dropped by design (alignment through chosen values, not containment); 5.2 GPU backend + auto-scheduling deferred on hardware. k-induction (k>1) / invariant strengthening remains a possible future extension.
 
 **Guiding Principles:**
 1. **AGI-First Design:** Every feature must serve AGI development needs (reasoning, learning, self-modification)
