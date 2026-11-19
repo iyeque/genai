@@ -5,6 +5,8 @@ Recursive descent parser with Pratt parsing for expressions.
 Based on GRAMMAR_BNF.md.
 """
 
+from __future__ import annotations
+
 from src.lexer import Lexer, Token, TokenType
 from src.algol_ast import (
     ASTNode, Program, Expr, Stmt,

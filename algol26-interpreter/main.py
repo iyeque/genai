@@ -5,6 +5,8 @@ ALGOL 26 Interpreter - Main Entry Point
 Usage: python main.py <source_file>
 """
 
+from __future__ import annotations
+
 import os
 import sys
 from src.lexer import Lexer, LexerError

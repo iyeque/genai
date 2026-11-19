@@ -5,6 +5,8 @@ Implements lexical analysis for ALGOL 26 source code.
 Token types based on LEXICAL_SYNTAX.md and GRAMMAR_BNF.md.
 """
 
+from __future__ import annotations
+
 from enum import Enum, auto
 from dataclasses import dataclass
 from typing import Optional, List

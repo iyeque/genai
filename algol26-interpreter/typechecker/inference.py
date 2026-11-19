@@ -9,6 +9,8 @@ Supports:
 - Lightweight effect tracking (stub)
 """
 
+from __future__ import annotations
+
 from typing import List, Optional, Dict, Any, Set, Tuple
 from dataclasses import dataclass, field
 

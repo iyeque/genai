@@ -5,6 +5,8 @@ Represents the parsed structure of an ALGOL 26 program.
 Uses Type objects from src.type_system for type annotations.
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 from typing import List, Optional, Union, Any, Set, TypeVar, Dict
 

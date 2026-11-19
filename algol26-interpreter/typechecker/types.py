@@ -5,6 +5,8 @@ Defines the data structures for types in the Hindley-Milner type inference syste
 with extensions: ADTs, row polymorphism, and effect tracking.
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 from typing import List, Optional, Dict, Any, Set, Union
 from enum import Enum, auto

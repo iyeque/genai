@@ -4,6 +4,8 @@ ALGOL 26 Type System
 Core type representation for Hindley-Milner inference and static checking.
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 from typing import List, Optional, Dict, Any, Set, Union
 from enum import Enum, auto

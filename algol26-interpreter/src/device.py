@@ -16,6 +16,8 @@ path would be a fabrication. The CPU reference backend proves the language
 design and gives a tested, extensible compute model; GPU is a backend swap.
 """
 
+from __future__ import annotations
+
 
 class DeviceArray:
     """An array tagged with the device it lives on.

@@ -15,6 +15,8 @@ auditable effect log, immutable versioning with rollback, and automatic
 re-verification of modified definitions via the existing Z3 verifier.
 """
 
+from __future__ import annotations
+
 
 class SandboxError(Exception):
     pass

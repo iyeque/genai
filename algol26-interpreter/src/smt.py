@@ -13,6 +13,8 @@ parentheses. Anything else (calls, arrays, records, probabilistic constructs)
 raises SmtUnsupported so the caller can fall back to runtime checking.
 """
 
+from __future__ import annotations
+
 import z3
 
 from src.algol_ast import (

@@ -13,6 +13,8 @@ gives fast startup and a single dispatch loop; the roadmap's LLVM/native
 codegen remains a future phase.
 """
 
+from __future__ import annotations
+
 from enum import IntEnum
 from dataclasses import dataclass, field
 from typing import Any, List, Dict, Optional

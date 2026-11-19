@@ -13,7 +13,7 @@ Gates:
      weakened into a runtime no-op — also a gate failure.
   3. --verify exit-code contracts: refutations hard-fail (exit != 0);
      proven and unknown-defer cases exit 0.
-  4. src/model_checker_test.py runtime probes exit 0.
+  4. src/model_checker_probes.py runtime probes exit 0.
 
 Run:  python3 run_suite.py   (from anywhere; paths resolve to this dir)
 Exit 0 iff every gate holds.
@@ -111,9 +111,9 @@ def main():
     print(f"--verify contracts: {len(VERIFY_CONTRACTS)} checked", flush=True)
 
     # Gate 4: runtime model-checker probes.
-    rc, out = run(["src/model_checker_test.py"])
+    rc, out = run(["src/model_checker_probes.py"])
     if rc != 0:
-        failures.append(f"[runtime] model_checker_test.py exited {rc}\n{out[-400:]}")
+        failures.append(f"[runtime] model_checker_probes.py exited {rc}\n{out[-400:]}")
     print("runtime model probes: " + ("pass" if rc == 0 else "FAIL"), flush=True)
 
     if failures:

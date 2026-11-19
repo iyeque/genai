@@ -4,6 +4,8 @@ ALGOL 26 Interpreter
 Evaluates AST with environment, scopes, and built-in functions.
 Implements the runtime semantics for MVP subset.
 """
+
+from __future__ import annotations
 import os
 import queue
 from collections import deque

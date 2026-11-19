@@ -4,6 +4,8 @@ ALGOL 26 Built-in Functions
 Provides built-in operations like println, math functions, etc.
 """
 
+from __future__ import annotations
+
 import math
 from typing import Any, List, Union
 

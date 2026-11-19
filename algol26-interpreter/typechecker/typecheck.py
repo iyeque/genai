@@ -4,6 +4,8 @@ ALGOL 26 Type Checker
 Provides type checking as a separate phase before interpretation.
 """
 
+from __future__ import annotations
+
 from .inference import ConstraintGenerator, TypeCheckError
 
 
