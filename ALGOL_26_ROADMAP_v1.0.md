@@ -30,7 +30,7 @@
     - ✅ Automatic VC generation for block-bodied procs (if/else + straight-line): one VC per return path, discharged with Z3 (2026-10-14).
     - ✅ Temporal assertions (`always P;`) discharged with Z3 as universal invariants (2026-10-14).
     - ✅ Proof automation: named `lemma` declarations with proof reuse via `assume` (2026-10-14). Refuted lemmas not registered; unknown-lemma assume errors.
-    - ⬜ Model checking (state-space exploration) — needs a state-transition model not yet present.
+    - ✅ Model checking (state-space exploration): `model`/`state`/`trans`/`invariant`/`check` implemented and end-to-end verified (2026-10-14).
   - ✅ 5.3 — Self-modifying code sandbox (core) — 2026-10-14:
     - ✅ Isolated evaluation namespace (disjoint from host globals) + append-only audit log of every effect.
     - ✅ Immutable versioned definitions; checkpoint/rollback rewinds current pointer without erasing history.
@@ -49,7 +49,7 @@
     ALGOL_26_ROADMAP_v1.0.md
   ```
 
-**Next Phase:** Phase 5 remainder — 5.1 proof automation (automatic VC generation), then 5.2 hardware acceleration.
+**Next Phase:** Phase 5 remainder — 5.2 hardware acceleration (GPU/CPU reference backend shipped; GPU backend deferred on hardware), then 5.1 generalised (unbounded/SMT) model checking and 5.3 OS capability denial.
 
 **Guiding Principles:**
 1. **AGI-First Design:** Every feature must serve AGI development needs (reasoning, learning, self-modification)

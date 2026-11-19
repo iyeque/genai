@@ -60,7 +60,7 @@ See `docs/` for detailed specifications.
 - Borrow checking (`ref`, `own`)
 - Concurrency runtime
 - Probabilistic programming (`prob` blocks, `sample`)
-- Formal verification (`verify`)
+- Formal verification (`verify`) + state-transition model checking (`model`, `state`, `trans`, `invariant`, `check`)
 
 ## License
 
