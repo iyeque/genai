@@ -2,7 +2,7 @@
 
 **Purpose:** This document outlines the comprehensive implementation plan for ALGOL 26, a language designed from the ground up to be the default language for AGI development in the GenAI ecosystem. The roadmap translates the vision into actionable phases, with technical specifications, success criteria, and risk mitigation strategies.
 
-**Current State (Phases 1–5.1c — verified 2026-10-14):**
+**Current State (Phases 1–5.1 incl. bounded + unbounded model checking — verified 2026-11-19):**
 - ✅ Phase 1 (MVI) — Complete: Python interpreter with lexer, parser, AST, interpreter, builtins, demo programs.
 - ✅ Phase 2 (Type System + Modules) — **Complete and published** (Git tag: `phase-2-complete`):
   - Full static type checking using Hindley-Milner inference with extensions:
@@ -31,11 +31,12 @@
     - ✅ Temporal assertions (`always P;`) discharged with Z3 as universal invariants (2026-10-14).
     - ✅ Proof automation: named `lemma` declarations with proof reuse via `assume` (2026-10-14). Refuted lemmas not registered; unknown-lemma assume errors.
     - ✅ Model checking (state-space exploration): `model`/`state`/`trans`/`invariant`/`check` implemented and end-to-end verified (2026-10-14).
+    - ✅ Unbounded model checking (2026-11-19): `check Name { unbounded; }` proves obligations for ALL reachable states by 1-induction via Z3 (base Init ==> I; step I /\ T ==> I' per transition, bodies symbolically executed over assignment/block/if-else/skip). Non-inductive invariants fall back to bounded exploration: real counterexample with trace, or UNKNOWN — never silently passed. `--smt`-only; full `--smt` suite 53/53.
   - ✅ 5.3 — Self-modifying code sandbox (core) — 2026-10-14:
     - ✅ Isolated evaluation namespace (disjoint from host globals) + append-only audit log of every effect.
     - ✅ Immutable versioned definitions; checkpoint/rollback rewinds current pointer without erasing history.
     - ✅ Verification-gated `sb_modify`: installs generated proc source only if contracts pass Z3; refuted -> rejected, prior version preserved (auto-rollback), rejection + counterexample logged.
-    - ⬜ Bytecode compilation of generated code (no separate VM yet). → DONE: src/bytecode.py stack-based compiler+VM, --bytecode flag (2026-10-24).
+    - ✅ Bytecode compilation of generated code: src/bytecode.py stack-based compiler+VM, --bytecode flag (2026-10-24).
     - ⬜ OS-level capability denial (no host resources to fence on this box).
 - Repository structure:
   ```
@@ -49,7 +50,7 @@
     ALGOL_26_ROADMAP_v1.0.md
   ```
 
-**Next Phase:** Phase 5 remainder — 5.2 hardware acceleration (GPU/CPU reference backend shipped; GPU backend deferred on hardware), then 5.1 generalised (unbounded/SMT) model checking and 5.3 OS capability denial.
+**Next Phase:** Phase 5 remainder — 5.2 GPU backend + auto-scheduling/multi-device partitioning (deferred: no GPU/CUDA on the dev box; CPU reference backend is the designed swap point) and 5.3 OS-level capability denial (no host resources to fence on this box). 5.1 verification is complete incl. bounded + unbounded model checking; k-induction (k>1) / invariant strengthening for non-inductive invariants is a possible future extension.
 
 **Guiding Principles:**
 1. **AGI-First Design:** Every feature must serve AGI development needs (reasoning, learning, self-modification)

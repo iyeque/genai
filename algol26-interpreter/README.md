@@ -60,7 +60,7 @@ See `docs/` for detailed specifications.
 - Borrow checking (`ref`, `own`)
 - Concurrency runtime
 - Probabilistic programming (`prob` blocks, `sample`)
-- Formal verification (`verify`) + state-transition model checking (`model`, `state`, `trans`, `invariant`, `check`)
+- Formal verification (`verify`) + state-transition model checking (`model`, `state`, `trans`, `invariant`, `check` — bounded exploration, plus unbounded 1-induction via Z3 with `unbounded;` under `--smt`)
 
 ## License
 
