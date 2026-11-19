@@ -140,7 +140,7 @@ class Sandbox:
         """
         from src.lexer import Lexer, LexerError
         from src.parser import Parser, ParserError
-        from src.ast import ProcDeclStmt
+        from src.algol_ast import ProcDeclStmt
         try:
             ast = Parser(Lexer(source)).parse()
         except (LexerError, ParserError) as e:

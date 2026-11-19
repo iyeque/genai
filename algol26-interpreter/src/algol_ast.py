@@ -423,10 +423,29 @@ class ModuleDeclStmt(Stmt):
     name: str
     token: Any = None
 
-    def __post_init__(self):
-        pass
 
-# Procedure/Function declaration
+@dataclass
+class StateVar:
+    """A state variable: `state count: int := 0;`."""
+    name: str
+    type_annot: Type
+    init_expr: Optional[Expr] = None
+
+
+@dataclass
+class TransitionDecl(Stmt):
+    """A named state-transition body: `trans inc: count := count + 1;`."""
+    name: str
+    body: Stmt
+
+
+@dataclass
+class InvariantClause(Stmt):
+    """An invariant clause: `invariant count >= 0;`."""
+    condition: Expr
+    message: Optional[str] = None
+
+
 @dataclass
 class ProcDeclStmt(Stmt):
     name: str
@@ -480,6 +499,38 @@ class Param:
 
 
 # No separate TypeDef nodes; type annotations are directly Type objects.
+
+@dataclass
+class ModelDeclStmt(Stmt):
+    """A model declaration: `model Name { state... trans... invariant... }`."""
+    name: str
+    state_vars: List['StateVar']
+    transitions: List['TransitionDecl']
+    invariants: List['InvariantClause']
+
+
+@dataclass
+class BoundDecl(Stmt):
+    """A bound declaration: `bound <name>: <expr>;`"""
+    name: str
+    value: Expr
+
+    def __post_init__(self):
+        pass
+
+@dataclass
+class CheckStmt(Stmt):
+    """A model-checking command: `check Counter { bound: <expr>; property: <expr>; }`."""
+    model_name: str
+    bound_decls: List['BoundDecl']
+    property_exprs: List[Expr]
+
+    def __post_init__(self):
+        if self.bound_decls is None:
+            self.bound_decls = []
+        if self.property_exprs is None:
+            self.property_exprs = []
+
 
 # Program
 @dataclass

@@ -6,7 +6,7 @@ Based on GRAMMAR_BNF.md.
 """
 
 from src.lexer import Lexer, Token, TokenType
-from src.ast import (
+from src.algol_ast import (
     ASTNode, Program, Expr, Stmt,
     LiteralExpr, IdentifierExpr, BinaryOpExpr, UnaryOpExpr, CallExpr,
     ArrayIndexExpr, RecordAccessExpr, ArrayConstructorExpr, RecordConstructorExpr,
@@ -22,6 +22,8 @@ from src.ast import (
     Attribute,
     ChanDeclStmt, SendStmt, ReceiveExpr, SelectStmt, AsyncProcDeclStmt,
     Case, SpecClause,
+    ModelDeclStmt,
+    StateVar, TransitionDecl, InvariantClause, CheckStmt, BoundDecl,
 )
 from src.type_system import Type, PrimitiveType, ArrayType, RecordType, FunctionType, TypeName, VOID_TYPE
 from typing import List, Optional, Dict, Any
@@ -44,6 +46,7 @@ class Parser:
         TokenType.PLUS: 4, TokenType.MINUS: 4,
         TokenType.STAR: 5, TokenType.SLASH: 5, TokenType.PERCENT: 5,
         TokenType.CARET: 6,  # exponentiation, right-associative
+        TokenType.ASSIGN: 10,  # assignment has higher precedence than operators
         TokenType.DOT: 7,  # member access
         TokenType.LPAREN: 8,  # function call
         TokenType.LBRACKET: 8,  # array indexing
@@ -96,10 +99,9 @@ class Parser:
 
         while not self.match(TokenType.EOF):
             # Determine if declaration or statement
-            if self.current_token.type in (TokenType.VAR, TokenType.CONST, TokenType.TYPE, TokenType.PROC, TokenType.CHAN) or \
+            if self.current_token.type in (TokenType.VAR, TokenType.CONST, TokenType.TYPE, TokenType.PROC, TokenType.CHAN, TokenType.MODEL, TokenType.LEMMA) or \
                (self.current_token.type == TokenType.ASYNC and self.peek() and self.peek().type == TokenType.PROC) or \
-               (self.current_token.type == TokenType.AT and self.peek() and self.peek().type == TokenType.KERNEL) or \
-               (self.current_token.type == TokenType.LEMMA):
+               (self.current_token.type == TokenType.AT and self.peek() and self.peek().type == TokenType.KERNEL):
                 decl = self.parse_declaration()
                 declarations.append(decl)
             else:
@@ -127,6 +129,8 @@ class Parser:
             return self.parse_attributed_proc_decl()
         elif t == TokenType.LEMMA:
             return self.parse_lemma_decl()
+        elif t == TokenType.MODEL:
+            return self.parse_model_decl()
         else:
             raise self.error(f"Unexpected token {t.name} in declaration")
 
@@ -171,8 +175,9 @@ class Parser:
     def parse_type_annotation(self) -> Type:
         """Parse a type annotation (used in var/const/type/proc)."""
         t = self.current_token.type
-        if t in (TokenType.INT, TokenType.REAL_TYPE, TokenType.BOOL, TokenType.CHAR_TYPE, TokenType.STRING_TYPE, TokenType.BYTE_TYPE, TokenType.VOID):
-            name = self.current_token.value
+        if t in (TokenType.INT, TokenType.REAL_TYPE, TokenType.BOOL, TokenType.CHAR_TYPE, TokenType.STRING_TYPE, TokenType.BYTE_TYPE, TokenType.VOID, TokenType.INTEGER):
+            # INTEGER is an alias for int (used in model state declarations).
+            name = 'int' if t == TokenType.INTEGER else self.current_token.value
             self.advance()
             return PrimitiveType(name)
         elif t == TokenType.ARRAY:
@@ -360,6 +365,8 @@ class Parser:
             return SkipStmt()
         elif t == TokenType.ASSERT:
             return self.parse_assert_stmt()
+        elif t == TokenType.CHECK:
+            return self.parse_check_stmt()
         elif t == TokenType.CAUSAL:
             return self.parse_causal_block()
         elif t == TokenType.VERIFY:
@@ -399,6 +406,49 @@ class Parser:
         name = self.expect(TokenType.IDENT).value
         self.expect(TokenType.SEMI)
         return ModuleDeclStmt(name=name, token=token)
+
+    def parse_model_decl(self) -> ModelDeclStmt:
+        """Parse a model block: `model Name { ... }`."""
+        self.expect(TokenType.MODEL)
+        name = self.expect(TokenType.IDENT).value
+        self.expect(TokenType.LBRACE)
+        state_vars = []
+        transitions = []
+        invariants = []
+        while not self.match(TokenType.RBRACE) and not self.match(TokenType.EOF):
+            if self.match(TokenType.STATE):
+                self.advance()
+                var_name = self.expect(TokenType.IDENT).value
+                self.expect(TokenType.COLON)
+                var_type = self.parse_type_annotation()
+                init_expr = None
+                if self.match(TokenType.ASSIGN):
+                    self.advance()
+                    init_expr = self.parse_expression()
+                self.expect(TokenType.SEMI)
+                state_vars.append(StateVar(name=var_name, type_annot=var_type, init_expr=init_expr))
+            elif self.match(TokenType.TRANSITION):
+                self.advance()
+                trans_name = self.expect(TokenType.IDENT).value
+                self.expect(TokenType.COLON)
+                trans_body = self.parse_statement()
+                transitions.append(TransitionDecl(name=trans_name, body=trans_body))
+            elif self.match(TokenType.INVARIANT):
+                inv = self.parse_spec_clause(TokenType.INVARIANT)
+                invariants.append(InvariantClause(condition=inv.condition, message=inv.message))
+            elif self.match(TokenType.CHECK):
+                self.advance()
+                # CHECK parses a boolean expression and adds it as an invariant
+                cond = self.parse_expression()
+                self.expect(TokenType.SEMI)
+                invariants.append(InvariantClause(condition=cond))
+            else:
+                raise self.error(
+                    f"Unexpected token {self.current_token.type.name} in model body; "
+                    "expected 'state', 'trans', 'invariant' or 'check'"
+                )
+        self.expect(TokenType.RBRACE)
+        return ModelDeclStmt(name=name, state_vars=state_vars, transitions=transitions, invariants=invariants)
 
     def parse_import_stmt(self) -> ImportStmt:
         token = self.expect(TokenType.IMPORT)
@@ -546,6 +596,41 @@ class Parser:
         self.expect(TokenType.SEMI)
         target = IdentifierExpr(name=name, token=token)
         return AssignmentStmt(target=target, value=value_expr)
+
+    def parse_check_stmt(self) -> CheckStmt:
+        """Parse: check <ModelName> { bound: <expr>; property: <expr>; ... }
+
+        'bound' and 'property' are contextual identifiers (not reserved
+        keywords), so programs may still use them as variable names.
+        A trailing ';' after the closing brace is optional.
+        """
+        self.expect(TokenType.CHECK)
+        model_name = self.expect(TokenType.IDENT).value
+        self.expect(TokenType.LBRACE)
+        bounds = []
+        properties = []
+        while not self.match(TokenType.RBRACE) and not self.match(TokenType.EOF):
+            t = self.current_token
+            if t.type == TokenType.IDENT and t.value == 'bound':
+                self.advance()
+                self.expect(TokenType.COLON)
+                bound_value = self.parse_expression()
+                self.expect(TokenType.SEMI)
+                bounds.append(BoundDecl(name='bound', value=bound_value))
+            elif t.type == TokenType.IDENT and t.value == 'property':
+                self.advance()
+                self.expect(TokenType.COLON)
+                expr = self.parse_expression()
+                self.expect(TokenType.SEMI)
+                properties.append(expr)
+            else:
+                raise self.error(
+                    f"Unexpected token {t.type.name} in check block; expected 'bound:' or 'property:'"
+                )
+        self.expect(TokenType.RBRACE)
+        if self.match(TokenType.SEMI):
+            self.advance()
+        return CheckStmt(model_name=model_name, bound_decls=bounds, property_exprs=properties)
 
     def parse_prob_block(self) -> ProbBlockStmt:
         self.expect(TokenType.PROB)

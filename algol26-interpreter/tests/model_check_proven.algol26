@@ -1,0 +1,13 @@
+// Phase 5.1 model checking: bounded exploration PROVES a safe invariant.
+// UpCounter only increments, so count >= 0 holds in every reachable state,
+// and with a budget of 6 transition applications count never exceeds 6.
+model UpCounter {
+    state count: INTEGER := 0;
+    trans inc: count := count + 1;
+    invariant count >= 0;
+}
+
+check UpCounter {
+    bound: 6;
+    property: count <= 6;
+}

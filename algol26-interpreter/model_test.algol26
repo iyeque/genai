@@ -1,0 +1,6 @@
+model Counter {
+    state count: INTEGER := 0;
+    trans inc: count := count + 1;
+    trans dec: count := count - 1;
+    invariant count >= 0;
+}

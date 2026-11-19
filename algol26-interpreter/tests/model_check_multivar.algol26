@@ -1,0 +1,16 @@
+// Phase 5.1 model checking: multi-variable models share ONE initial state,
+// states dedupe by value, and check-properties are evaluated alongside
+// invariants. inc_x eventually pushes x past 2 (refuted with a trace);
+// y never drops below 8 within the budget of 8 (property proven).
+model TwoVars {
+    state x: INTEGER := 0;
+    state y: INTEGER := 10;
+    trans inc_x: x := x + 1;
+    trans dec_y: y := y - 1;
+    invariant x <= 2;
+}
+
+check TwoVars {
+    bound: 8;
+    property: y >= 8;
+}

@@ -8,7 +8,7 @@ import os
 import queue
 from collections import deque
 
-from src.ast import (
+from src.algol_ast import (
     ASTNode, Program, Expr, Stmt,
     LiteralExpr, IdentifierExpr, BinaryOpExpr, UnaryOpExpr, CallExpr,
     ArrayIndexExpr, RecordAccessExpr, ArrayConstructorExpr, RecordConstructorExpr,
@@ -19,6 +19,7 @@ from src.ast import (
     ChanDeclStmt, SendStmt, ReceiveExpr, SelectStmt, AsyncProcDeclStmt,
     ProbBlockStmt, CausalBlockStmt, VerifyBlockStmt,
     AlwaysStmt, LemmaDeclStmt, AssumeStmt,
+    ModelDeclStmt, CheckStmt,
     KernelLaunchExpr,
     Token,
 )
@@ -251,6 +252,10 @@ class Interpreter:
             return self.eval_SelectStmt(node)
         elif isinstance(node, AsyncProcDeclStmt):
             return self.eval_AsyncProcDeclStmt(node)
+        elif isinstance(node, ModelDeclStmt):
+            return self.eval_ModelDeclStmt(node)
+        elif isinstance(node, CheckStmt):
+            return self.eval_CheckStmt(node)
         else:
             raise InterpreterError(f"No eval method for {type(node).__name__}")
 
@@ -319,7 +324,7 @@ class Interpreter:
             print(f"NOTE: static verification unavailable for '{decl.name}' "
                   f"(install z3-solver to enable)")
             return
-        from src.ast import Expr
+        from src.algol_ast import Expr
         try:
             if isinstance(decl.body, Expr):
                 results = verify_proc_contracts(decl)
@@ -617,6 +622,49 @@ class Interpreter:
             print(f"WARNING: {line}")
         else:
             print("ALWAYS: SMT returned unknown; deferred")
+
+    def eval_ModelDeclStmt(self, stmt: ModelDeclStmt):
+        """Register a state-transition model. No runtime effect until a
+        `check` statement explores it."""
+        if not hasattr(self, '_models'):
+            self._models = {}
+        self._models[stmt.name] = stmt
+
+    def eval_CheckStmt(self, stmt: CheckStmt):
+        """Bounded model checking (Phase 5.1): explore the named model's
+        reachable states and evaluate its invariants plus this check's
+        properties. Refutations print a counterexample and trace; under
+        --verify a refutation is a hard failure (like verify blocks)."""
+        from src.model_checker import check_model
+        model = getattr(self, '_models', {}).get(stmt.model_name)
+        if model is None:
+            raise InterpreterError(f"check references unknown model '{stmt.model_name}'")
+        bound = 10
+        if stmt.bound_decls:
+            bound_val = self.eval(stmt.bound_decls[-1].value)
+            if not isinstance(bound_val, int) or isinstance(bound_val, bool) or bound_val < 0:
+                raise InterpreterError("check bound must be a non-negative integer")
+            bound = bound_val
+        result = check_model(model, bound=bound, properties=stmt.property_exprs or None)
+        print(f"MODEL CHECK {stmt.model_name}: {result.states_explored} states, "
+              f"{result.transitions_applied} transitions (bound {bound})")
+        for label in result.proven:
+            print(f"MODEL CHECK PROVEN: {label}")
+        for label in result.refuted:
+            cex = result.counterexamples.get(label)
+            line = f"MODEL CHECK REFUTED: {label}"
+            if cex:
+                vals = ", ".join(f"{k}={v}" for k, v in cex['state'].items())
+                line += f" | counterexample: {vals}"
+            if self.verify_mode:
+                raise InterpreterError(line)
+            print(f"WARNING: {line}")
+            if cex:
+                steps = []
+                for trans, values in cex['trace']:
+                    vals = ", ".join(f"{k}={v}" for k, v in values.items())
+                    steps.append(f"{trans or 'init'} [{vals}]")
+                print("  trace: " + " -> ".join(steps))
 
     def eval_LemmaDeclStmt(self, stmt: LemmaDeclStmt):
         """Register a named lemma; under --smt, prove it and store its Z3 term.

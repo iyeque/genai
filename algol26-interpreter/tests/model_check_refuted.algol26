@@ -1,0 +1,16 @@
+// Phase 5.1 model checking: bounded exploration REFUTES an unsafe invariant
+// with a counterexample trace: `dec` takes count from 0 to -1.
+// Normal / --smt mode: reports MODEL CHECK REFUTED, exit 0 (same convention
+// as tests/smt_refuted.algol26). Under --verify: refutation hard-fails (exit 1).
+// The check-property count >= -1 IS proven within the bound of 5.
+model Counter {
+    state count: INTEGER := 0;
+    trans inc: count := count + 1;
+    trans dec: count := count - 1;
+    invariant count >= 0;
+}
+
+check Counter {
+    bound: 5;
+    property: count >= -1;
+}

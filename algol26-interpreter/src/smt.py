@@ -15,7 +15,7 @@ raises SmtUnsupported so the caller can fall back to runtime checking.
 
 import z3
 
-from src.ast import (
+from src.algol_ast import (
     Expr,
     LiteralExpr, IdentifierExpr, BinaryOpExpr, UnaryOpExpr, ParenExpr,
     QuantifierExpr,
@@ -235,7 +235,7 @@ def verify_proc_contracts(decl):
 
     Returns a list of (clause_kind, ProofResult-or-None, note) tuples.
     """
-    from src.ast import Expr
+    from src.algol_ast import Expr
 
     results = []
     tr = SmtTranslator()
@@ -299,7 +299,7 @@ def verify_block_body(decl):
     Returns a list of (clause_kind, ProofResult-or-None, note) tuples, matching
     verify_proc_contracts's contract.
     """
-    from src.ast import (BlockStmt, IfStmt, ReturnStmt, Expr, IdentifierExpr)
+    from src.algol_ast import (BlockStmt, IfStmt, ReturnStmt, Expr, IdentifierExpr)
 
     results = []
     tr = SmtTranslator()
@@ -347,7 +347,7 @@ def verify_block_body(decl):
         else:
             # then-path: condition holds; else-path: condition negated.
             paths.append(([ifs.condition], then_ret.value))
-            from src.ast import UnaryOpExpr
+            from src.algol_ast import UnaryOpExpr
             neg = UnaryOpExpr(op=_not_token(), operand=ifs.condition)
             paths.append(([neg], else_ret.value))
     else:

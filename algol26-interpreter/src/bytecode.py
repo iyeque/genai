@@ -76,7 +76,7 @@ class BytecodeCompiler:
 
     # ---------- expressions ----------
     def compile_expr(self, expr):
-        from src.ast import (
+        from src.algol_ast import (
             LiteralExpr, IdentifierExpr, BinaryOpExpr, UnaryOpExpr, CallExpr,
             ArrayIndexExpr, RecordAccessExpr, ArrayConstructorExpr,
             RecordConstructorExpr, ParenExpr, TernaryExpr, KernelLaunchExpr,
@@ -107,7 +107,7 @@ class BytecodeCompiler:
         if isinstance(expr, CallExpr):
             # callee is an identifier in our subset
             callee_name = None
-            from src.ast import IdentifierExpr
+            from src.algol_ast import IdentifierExpr
             if isinstance(expr.callee, IdentifierExpr):
                 callee_name = expr.callee.name
             for a in expr.args:
@@ -153,7 +153,7 @@ class BytecodeCompiler:
 
     # ---------- statements ----------
     def compile_stmt(self, stmt):
-        from src.ast import (
+        from src.algol_ast import (
             VarDeclStmt, ConstDeclStmt, AssignmentStmt, ProcCallStmt, IfStmt,
             WhileStmt, ForStmt, ReturnStmt, BlockStmt, ExprStmt, SkipStmt,
             AssertStmt,
@@ -173,7 +173,7 @@ class BytecodeCompiler:
         if isinstance(stmt, AssignmentStmt):
             self.compile_expr(stmt.value)
             # target
-            from src.ast import IdentifierExpr, ArrayIndexExpr, RecordAccessExpr
+            from src.algol_ast import IdentifierExpr, ArrayIndexExpr, RecordAccessExpr
             if isinstance(stmt.target, IdentifierExpr):
                 self.code.instructions.append(Instruction(Op.STORE_VAR, stmt.target.name))
             else:
@@ -184,7 +184,7 @@ class BytecodeCompiler:
             for a in stmt.args:
                 self.compile_expr(a)
             callee = stmt.callee
-            from src.ast import IdentifierExpr
+            from src.algol_ast import IdentifierExpr
             name = callee.name if isinstance(callee, IdentifierExpr) else None
             self.code.instructions.append(Instruction(Op.CALL, (name, len(stmt.args))))
             self.code.instructions.append(Instruction(Op.POP))
@@ -269,7 +269,7 @@ class BytecodeCompiler:
         raise CompilerError(f"unsupported statement: {type(stmt).__name__}")
 
     def compile_program(self, program):
-        from src.ast import ProcDeclStmt, Program
+        from src.algol_ast import ProcDeclStmt, Program
         # First pass: compile procedures as separate code objects stored as constants? 
         # For simplicity, register procedures as globals via interpreter fallback.
         # We'll compile top-level statements into main code object; procedures are
@@ -283,7 +283,7 @@ class BytecodeCompiler:
                     pass
                 else:
                     # body may be Expr or BlockStmt
-                    from src.ast import BlockStmt, Expr
+                    from src.algol_ast import BlockStmt, Expr
                     if isinstance(decl.body, BlockStmt):
                         sub.compile_stmt(decl.body)
                     elif isinstance(decl.body, Expr):

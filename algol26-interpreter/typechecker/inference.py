@@ -19,7 +19,7 @@ from src.type_system import (
     INT_TYPE, REAL_TYPE, BOOL_TYPE, STRING_TYPE, CHAR_TYPE, VOID_TYPE,
     apply_subst, compose_subst, ChanType, TaskType
 )
-from src.ast import (
+from src.algol_ast import (
     ASTNode, Expr, Stmt,
     LiteralExpr, IdentifierExpr, BinaryOpExpr, UnaryOpExpr, CallExpr,
     ArrayIndexExpr, RecordAccessExpr, ArrayConstructorExpr, RecordConstructorExpr,
@@ -29,6 +29,7 @@ from src.ast import (
     IfStmt, WhileStmt, ForStmt, ReturnStmt, BlockStmt, ExprStmt, SkipStmt, AssertStmt,
     ProbBlockStmt, CausalBlockStmt, VerifyBlockStmt, ProbBindStmt,
     AlwaysStmt, LemmaDeclStmt, AssumeStmt,
+    ModelDeclStmt, CheckStmt,
     ImportStmt, ExportStmt, ModuleDeclStmt,
     ProcDeclStmt, Param,
     # Phase 4
@@ -218,6 +219,42 @@ class ConstraintGenerator:
             scheme = self.generalize(var_type, self.env)
             self.env.extend(decl.name, scheme)
 
+    def process_model_decl(self, decl):
+        """Type-check a model: state vars form a scope; transition bodies and
+        invariant conditions are checked inside it. The state-var schemes are
+        registered so `check` statements can type their obligations."""
+        model_env = Env(parent=self.env)
+        old_env = self.env
+        self.env = model_env
+        try:
+            for var in decl.state_vars:
+                if var.init_expr is not None:
+                    init_type = self.infer_expr(var.init_expr)
+                    if var.type_annot is not None:
+                        declared = self.resolve_type(var.type_annot)
+                        self.unify(var, init_type, declared)
+                        var_type = declared
+                    else:
+                        var_type = init_type
+                else:
+                    if var.type_annot is None:
+                        raise TypeCheckError(
+                            "Model state variable without initializer requires explicit type", var)
+                    var_type = self.resolve_type(var.type_annot)
+                model_env.extend(var.name, self.generalize(var_type, model_env))
+            for trans in decl.transitions:
+                self.infer_stmt(trans.body)
+            for inv in decl.invariants:
+                cond_type = self.infer_expr(inv.condition)
+                self.unify(inv, cond_type, BOOL_TYPE)
+            if not hasattr(self, '_models'):
+                self._models = {}
+            self._models[decl.name] = {
+                v.name: model_env.lookup(v.name) for v in decl.state_vars
+            }
+        finally:
+            self.env = old_env
+
     def process_const_decl(self, decl):
         if decl.init_expr is None:
             raise TypeCheckError("Constant requires initializer", decl)
@@ -323,6 +360,8 @@ class ConstraintGenerator:
                     # A lemma states a boolean fact; check it type-checks.
                     cond_type = self.infer_expr(decl.condition)
                     self.unify(decl, cond_type, BOOL_TYPE)
+                elif isinstance(decl, ModelDeclStmt):
+                    self.process_model_decl(decl)
                 else:
                     # Other top-level declarations (e.g., type, import/export) may be ignored here
                     pass
@@ -807,6 +846,26 @@ class ConstraintGenerator:
                     self.infer_stmt(case.stmt)
             if stmt.default_stmt:
                 self.infer_stmt(stmt.default_stmt)
+        elif isinstance(stmt, CheckStmt):
+            # `check Model { bound: <int>; property: <bool>; }` — obligations
+            # are typed in the model's state-variable scope.
+            models = getattr(self, '_models', {})
+            if stmt.model_name not in models:
+                raise TypeCheckError(f"check references unknown model '{stmt.model_name}'", stmt)
+            model_env = Env(parent=self.env)
+            for name, scheme in models[stmt.model_name].items():
+                model_env.extend(name, scheme)
+            old_env = self.env
+            self.env = model_env
+            try:
+                for b in stmt.bound_decls:
+                    bt = self.infer_expr(b.value)
+                    self.unify(b, bt, INT_TYPE)
+                for p in stmt.property_exprs:
+                    pt = self.infer_expr(p)
+                    self.unify(p, pt, BOOL_TYPE)
+            finally:
+                self.env = old_env
         else:
             raise TypeCheckError(f"Unsupported statement type: {type(stmt).__name__}", stmt)
 

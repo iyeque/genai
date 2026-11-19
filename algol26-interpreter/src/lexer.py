@@ -87,6 +87,7 @@ class TokenType(Enum):
     REQUIRES = auto()
     ENSURES = auto()
     INVARIANT = auto()
+    STATE = auto()
     FORALL = auto()
     EXISTS = auto()
     ALWAYS = auto()
@@ -106,6 +107,10 @@ class TokenType(Enum):
     ATOMIC = auto()
     CONVERT = auto()
     LEFT_ARROW = auto()
+    MODEL = auto()
+    TRANSITION = auto()
+    TRANS = auto()
+    CHECK = auto()
     # Modules
     MODULE = auto()
     IMPORT = auto()
@@ -214,6 +219,7 @@ class Lexer:
         'enum': TokenType.ENUM,
         'class': TokenType.CLASS,
         'interface': TokenType.INTERFACE,
+        'integer': TokenType.INTEGER,
         # Types
         'int': TokenType.INT,
         'real': TokenType.REAL_TYPE,
@@ -254,6 +260,7 @@ class Lexer:
         'requires': TokenType.REQUIRES,
         'ensures': TokenType.ENSURES,
         'invariant': TokenType.INVARIANT,
+        'state': TokenType.STATE,
         'forall': TokenType.FORALL,
         'exists': TokenType.EXISTS,
         'always': TokenType.ALWAYS,
@@ -275,6 +282,10 @@ class Lexer:
         'module': TokenType.MODULE,
         'import': TokenType.IMPORT,
         'export': TokenType.EXPORT,
+        'model': TokenType.MODEL,
+        'trans': TokenType.TRANSITION,
+        'transition': TokenType.TRANSITION,
+        'check': TokenType.CHECK,
         'from': TokenType.FROM,
         'as': TokenType.AS,
     }
