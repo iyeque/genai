@@ -1,0 +1,16 @@
+// Phase 5.1 UNBOUNDED model checking: 1-induction via Z3 proves count >= 0
+// for ALL reachable states — no bound, not just the explored prefix.
+//   base:  Init (count = 0) ==> count >= 0
+//   step:  count >= 0 /\ count' = count + 1 ==> count' >= 0
+// Requires --smt (verification-only; errors in normal mode by design).
+// Expected under --smt: MODEL CHECK PROVEN (unbounded) for both obligations.
+model UpCounter {
+    state count: INTEGER := 0;
+    trans inc: count := count + 1;
+    invariant count >= 0;
+}
+
+check UpCounter {
+    unbounded;
+    property: count * 2 >= 0;
+}

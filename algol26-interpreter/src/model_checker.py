@@ -25,17 +25,41 @@ the transition trace that reaches it.
 This is dynamic (runtime) analysis — it evaluates concrete states with the
 interpreter and does NOT require z3.
 
+Unbounded model checking (Phase 5.1 generalised)
+------------------------------------------------
+`check Name { unbounded; ... }` (--smt only) proves obligations for ALL
+reachable states by 1-induction via Z3:
+
+    base:  Init(s) ==> I(s)             for each obligation I
+    step:  I(s) /\\ T(s, s') ==> I(s')   for each transition T, obligation I
+
+(all obligations are assumed in the step pre-state — sound for their
+conjunction). Transition bodies are symbolically executed over the subset
+{assignment, block, if/else, skip}; anything else defers honestly. A refuted
+BASE is a genuine initial-state violation. A refuted/unknown STEP means the
+obligations are not 1-inductive — the bounded explorer then runs as fallback
+(real counterexample, or UNKNOWN for the unbounded claim).
+
 Public API
 ----------
 explore_model(model: ModelDeclStmt, bound: int)
     -> (Dict[state_id, State], transitions_applied: int)
 check_model(model: ModelDeclStmt, bound: int = 10, properties: List[Expr] = None)
     -> CheckResult
+prove_model_unbounded(model: ModelDeclStmt, properties: List[Expr] = None,
+                      fallback_bound: int = 10)
+    -> UnboundedCheckResult
 
 CheckResult fields:
     proven / refuted / unknown: List[str]  -- obligation labels
     counterexamples: Dict[label, {'state': values, 'trace': [(trans, values)...]}]
     states_explored / transitions_applied / max_bound: int
+
+UnboundedCheckResult fields:
+    proven / refuted / unknown: List[str]  -- obligation labels
+    counterexamples: Dict[label, {'state': values, 'trace': [...]}]
+    note: str                              -- why induction fell short
+    fallback: Optional[CheckResult]        -- bounded result when it did
 """
 
 from __future__ import annotations
@@ -229,3 +253,212 @@ def check_model(model: ModelDeclStmt, bound: int = 10,
                 }
 
     return result
+
+
+# ---------------------------------------------------------------------------
+# Unbounded model checking (1-induction via Z3)
+# ---------------------------------------------------------------------------
+
+@dataclass
+class UnboundedCheckResult:
+    """Outcome of an unbounded (induction) check.
+
+    proven: obligations shown to hold in ALL reachable states (base + step).
+    refuted: genuine initial-state violations (base refuted), with the
+             initial state as counterexample.
+    unknown: obligations left open by induction itself.
+    note:    why induction fell short (step refuted/unknown, untranslatable).
+    fallback: bounded CheckResult when induction fell short — its refutations
+              are real counterexamples; its 'proven' labels only hold within
+              the bound, so the unbounded claim stays UNKNOWN for them.
+    """
+    proven: List[str] = field(default_factory=list)
+    refuted: List[str] = field(default_factory=list)
+    unknown: List[str] = field(default_factory=list)
+    counterexamples: Dict[str, Any] = field(default_factory=dict)
+    note: str = ""
+    fallback: Optional[CheckResult] = None
+
+
+def _state_sort(var):
+    """z3 sort for a model state variable from its type annotation."""
+    import z3
+    from src.type_system import PrimitiveType
+    t = var.type_annot
+    if isinstance(t, PrimitiveType):
+        if t.name in ("real", "float"):
+            return z3.RealSort()
+        if t.name == "bool":
+            return z3.BoolSort()
+    return z3.IntSort()
+
+
+def _z3_to_py(v):
+    """Render a z3 counterexample value as a plain Python value."""
+    import z3
+    if v is None:
+        return None
+    if z3.is_int_value(v):
+        return v.as_long()
+    if z3.is_rational_value(v):
+        return float(v.as_fraction())
+    if z3.is_true(v):
+        return True
+    if z3.is_false(v):
+        return False
+    return str(v)
+
+
+def _symbolic_exec(stmt, tr, sym, pre):
+    """Symbolically execute a transition body over the model's state vars.
+
+    `sym` maps var name -> current z3 term (initially the pre-state constants
+    themselves); `pre` maps var name -> its pre-state constant. Returns a NEW
+    map for the post-state. Supports assignments to state vars, blocks
+    (sequential), if/else (per-var ITE merge) and skip; anything else raises
+    SmtUnsupported so the caller defers to the bounded explorer honestly.
+    """
+    import z3
+    from src.algol_ast import (
+        AssignmentStmt, BlockStmt, IfStmt, SkipStmt, IdentifierExpr,
+    )
+    from src.smt import SmtUnsupported
+
+    def subst(term):
+        pairs = [(pre[n], sym[n]) for n in sym if pre[n] is not sym[n]]
+        return z3.substitute(term, *pairs) if pairs else term
+
+    if isinstance(stmt, AssignmentStmt):
+        if not isinstance(stmt.target, IdentifierExpr) or stmt.target.name not in sym:
+            raise SmtUnsupported("assignment target is not a model state variable")
+        out = dict(sym)
+        out[stmt.target.name] = subst(tr.translate(stmt.value))
+        return out
+    if isinstance(stmt, BlockStmt):
+        cur = dict(sym)
+        for s in stmt.statements:
+            cur = _symbolic_exec(s, tr, cur, pre)
+        return cur
+    if isinstance(stmt, IfStmt):
+        cond = subst(tr.translate(stmt.condition))
+        then_sym = _symbolic_exec(stmt.then_branch, tr, dict(sym), pre)
+        else_sym = (_symbolic_exec(stmt.else_branch, tr, dict(sym), pre)
+                    if stmt.else_branch is not None else dict(sym))
+        return {n: z3.If(cond, then_sym[n], else_sym[n]) for n in sym}
+    if isinstance(stmt, SkipStmt):
+        return dict(sym)
+    raise SmtUnsupported(f"{type(stmt).__name__} not symbolically executable")
+
+
+def prove_model_unbounded(model: ModelDeclStmt,
+                          properties: Optional[List[Expr]] = None,
+                          fallback_bound: int = 10) -> UnboundedCheckResult:
+    """Unbounded model checking by 1-induction over Z3 (requires z3).
+
+    Discharges, for the obligation conjunction (model invariants + check
+    properties):
+      base:  Init(s) ==> I(s)            for each obligation I
+      step:  I(s) /\\ T(s, s') ==> I(s')  for each transition T, obligation I
+    where T is the symbolically-executed transition body relating pre-state
+    constants to post-state constants. All obligations are assumed in the
+    step pre-state (sound for the conjunction).
+
+    A refuted BASE is a genuine violation (the initial state). A refuted or
+    unknown STEP, or a transition body outside the symbolic subset, means
+    induction falls short: the bounded explorer runs as `fallback` and `note`
+    records the gap. Nothing is silently passed.
+    """
+    import z3
+    from src.smt import SmtTranslator, SmtUnsupported, prove
+
+    labels = [expr_to_source(inv.condition) for inv in model.invariants]
+    exprs: List[Expr] = [inv.condition for inv in model.invariants]
+    if properties:
+        labels.extend(expr_to_source(p) for p in properties)
+        exprs.extend(properties)
+
+    result = UnboundedCheckResult()
+    if not exprs:
+        return result  # no obligations
+
+    def _fallback(note):
+        result.note = note
+        result.fallback = check_model(model, bound=fallback_bound,
+                                      properties=properties)
+        return result
+
+    names = [v.name for v in model.state_vars]
+    tr_pre = SmtTranslator()
+    tr_post = SmtTranslator()
+    pre = {v.name: tr_pre.declare(v.name, _state_sort(v)) for v in model.state_vars}
+    # Post-state: primed z3 constants bound UNDER THE STATE-VAR NAME in the
+    # post translator. (declare() registers under the name passed, so
+    # declaring "count'" would leave "count" unknown -> the translator's
+    # fallback re-declares z3.Const("count"), which z3 interns to the SAME
+    # term as the pre constant — collapsing post onto pre and making every
+    # step proof vacuously valid.)
+    post = {}
+    for v in model.state_vars:
+        c = z3.Const(v.name + "'", _state_sort(v))
+        tr_post.vars[v.name] = c
+        post[v.name] = c
+
+    # Init constraints and obligations (pre- and post-state translations).
+    try:
+        init_constraints = []
+        for v in model.state_vars:
+            if v.init_expr is not None:
+                init_term = tr_pre.translate(v.init_expr)
+            else:
+                sort = pre[v.name].sort()
+                init_term = (z3.BoolVal(False) if sort == z3.BoolSort()
+                             else z3.RealVal(0) if sort == z3.RealSort()
+                             else z3.IntVal(0))
+            init_constraints.append(pre[v.name] == init_term)
+        obls_pre = [tr_pre.translate(e) for e in exprs]
+        obls_post = [tr_post.translate(e) for e in exprs]
+    except SmtUnsupported as e:
+        return _fallback(f"obligation/init not translatable: {e}")
+
+    # Transition relations: post_v == f_v(pre), one conjunction per trans.
+    relations = []
+    try:
+        for trans in model.transitions:
+            sym = _symbolic_exec(trans.body, tr_pre, dict(pre), pre)
+            relations.append((trans.name, [post[n] == sym[n] for n in names]))
+    except SmtUnsupported as e:
+        return _fallback(f"transition not symbolically executable: {e}")
+
+    # Base case: Init ==> each obligation. A refutation here is genuine.
+    base_unknown = None
+    for label, goal in zip(labels, obls_pre):
+        pr = prove(init_constraints, goal, var_names=pre)
+        if pr.status == "refuted":
+            result.refuted.append(label)
+            vals = {n: _z3_to_py(pr.counterexample.get(n)) for n in names}
+            result.counterexamples[label] = {'state': vals, 'trace': [(None, vals)]}
+        elif pr.status == "unknown":
+            base_unknown = label
+    if result.refuted:
+        result.unknown = [l for l in labels if l not in result.refuted]
+        result.note = "initial-state violation; induction aborted"
+        return result
+    if base_unknown is not None:
+        return _fallback(f"base case unknown for {base_unknown}")
+
+    # Induction step: obligations(pre) /\ T(pre, post) ==> obligation(post).
+    step_gap = None
+    for tname, rel in relations:
+        assumes = obls_pre + rel
+        for label, goal_post in zip(labels, obls_post):
+            pr = prove(assumes, goal_post, var_names={**pre, **post})
+            if pr.status != "proven":
+                step_gap = f"step '{tname}' {pr.status} for {label}; not 1-inductive"
+                break
+        if step_gap:
+            break
+
+    if step_gap is None:
+        result.proven = list(labels)
+        return result
+    return _fallback(step_gap)

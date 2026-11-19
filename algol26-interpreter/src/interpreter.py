@@ -645,6 +645,9 @@ class Interpreter:
             if not isinstance(bound_val, int) or isinstance(bound_val, bool) or bound_val < 0:
                 raise InterpreterError("check bound must be a non-negative integer")
             bound = bound_val
+        if stmt.unbounded:
+            self._check_unbounded(stmt, model, bound)
+            return
         result = check_model(model, bound=bound, properties=stmt.property_exprs or None)
         print(f"MODEL CHECK {stmt.model_name}: {result.states_explored} states, "
               f"{result.transitions_applied} transitions (bound {bound})")
@@ -665,6 +668,58 @@ class Interpreter:
                     vals = ", ".join(f"{k}={v}" for k, v in values.items())
                     steps.append(f"{trans or 'init'} [{vals}]")
                 print("  trace: " + " -> ".join(steps))
+
+    def _check_unbounded(self, stmt: CheckStmt, model, bound: int):
+        """Unbounded model checking (Phase 5.1 generalised): 1-induction via
+        Z3 proves obligations for ALL reachable states. Verification-only —
+        requires --smt (errors in normal mode, like bare quantifiers).
+
+        When induction falls short (non-inductive invariant, untranslatable
+        transition), the bounded explorer runs as fallback: a real refutation
+        hard-fails under --verify; obligations that merely hold within the
+        bound stay UNKNOWN for the unbounded claim (nothing silently passed).
+        """
+        if not self.smt_verify:
+            raise InterpreterError(
+                "unbounded model checking requires --smt (static induction proof)")
+        if not _SMT_AVAILABLE:
+            raise InterpreterError("unbounded model checking requires z3-solver")
+        from src.model_checker import prove_model_unbounded
+        ur = prove_model_unbounded(model, properties=stmt.property_exprs or None,
+                                   fallback_bound=bound)
+        print(f"MODEL CHECK {stmt.model_name}: unbounded (1-induction via Z3)")
+        for label in ur.proven:
+            print(f"MODEL CHECK PROVEN (unbounded): {label}")
+
+        def _refutation(label, cex):
+            line = f"MODEL CHECK REFUTED: {label}"
+            if cex:
+                vals = ", ".join(f"{k}={v}" for k, v in cex['state'].items())
+                line += f" | counterexample: {vals}"
+            if self.verify_mode:
+                raise InterpreterError(line)
+            print(f"WARNING: {line}")
+            if cex:
+                steps = []
+                for trans, values in cex['trace']:
+                    vals = ", ".join(f"{k}={v}" for k, v in values.items())
+                    steps.append(f"{trans or 'init'} [{vals}]")
+                print("  trace: " + " -> ".join(steps))
+
+        for label in ur.refuted:
+            _refutation(label, ur.counterexamples.get(label))
+        for label in ur.unknown:
+            print(f"MODEL CHECK UNKNOWN: {label} ({ur.note or 'induction incomplete'})")
+        if ur.fallback is not None:
+            fb = ur.fallback
+            print(f"MODEL CHECK {stmt.model_name}: induction incomplete ({ur.note}); "
+                  f"bounded fallback: {fb.states_explored} states, "
+                  f"{fb.transitions_applied} transitions (bound {bound})")
+            for label in fb.refuted:
+                _refutation(label, fb.counterexamples.get(label))
+            for label in list(fb.proven) + list(fb.unknown):
+                print(f"MODEL CHECK UNKNOWN: {label} — not proven inductive; "
+                      f"no counterexample within bound {bound}")
 
     def eval_LemmaDeclStmt(self, stmt: LemmaDeclStmt):
         """Register a named lemma; under --smt, prove it and store its Z3 term.

@@ -598,10 +598,12 @@ class Parser:
         return AssignmentStmt(target=target, value=value_expr)
 
     def parse_check_stmt(self) -> CheckStmt:
-        """Parse: check <ModelName> { bound: <expr>; property: <expr>; ... }
+        """Parse: check <ModelName> { bound: <expr>; property: <expr>; unbounded; ... }
 
-        'bound' and 'property' are contextual identifiers (not reserved
-        keywords), so programs may still use them as variable names.
+        'bound', 'property' and 'unbounded' are contextual identifiers (not
+        reserved keywords), so programs may still use them as variable names.
+        'unbounded;' opts into static 1-induction via Z3 (--smt only); a
+        'bound:' alongside it is the bounded-fallback budget.
         A trailing ';' after the closing brace is optional.
         """
         self.expect(TokenType.CHECK)
@@ -609,6 +611,7 @@ class Parser:
         self.expect(TokenType.LBRACE)
         bounds = []
         properties = []
+        unbounded = False
         while not self.match(TokenType.RBRACE) and not self.match(TokenType.EOF):
             t = self.current_token
             if t.type == TokenType.IDENT and t.value == 'bound':
@@ -623,14 +626,19 @@ class Parser:
                 expr = self.parse_expression()
                 self.expect(TokenType.SEMI)
                 properties.append(expr)
+            elif t.type == TokenType.IDENT and t.value == 'unbounded':
+                self.advance()
+                self.expect(TokenType.SEMI)
+                unbounded = True
             else:
                 raise self.error(
-                    f"Unexpected token {t.type.name} in check block; expected 'bound:' or 'property:'"
+                    f"Unexpected token {t.type.name} in check block; expected 'bound:', 'property:' or 'unbounded;'"
                 )
         self.expect(TokenType.RBRACE)
         if self.match(TokenType.SEMI):
             self.advance()
-        return CheckStmt(model_name=model_name, bound_decls=bounds, property_exprs=properties)
+        return CheckStmt(model_name=model_name, bound_decls=bounds, property_exprs=properties,
+                         unbounded=unbounded)
 
     def parse_prob_block(self) -> ProbBlockStmt:
         self.expect(TokenType.PROB)

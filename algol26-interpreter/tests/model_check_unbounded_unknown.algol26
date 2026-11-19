@@ -1,0 +1,18 @@
+// Phase 5.1 UNBOUNDED model checking: x != 3 is TRUE in every reachable state
+// (x starts at 0 and jumps by 2, so only even values are reachable) but is
+// NOT 1-inductive: from an arbitrary state x = 1 (unreachable, but induction
+// must consider it), bump would reach x' = 3. Induction alone cannot prove
+// it; the bounded fallback (bound 8) finds no counterexample, so the honest
+// verdict is UNKNOWN — not proven unbounded, not refuted.
+// --smt: MODEL CHECK UNKNOWN, exit 0 (also under --verify: unknown defers).
+// Normal mode: errors (unbounded requires --smt) — expected failure.
+model EvenSteps {
+    state x: INTEGER := 0;
+    trans bump: x := x + 2;
+    invariant x != 3;
+}
+
+check EvenSteps {
+    unbounded;
+    bound: 8;
+}

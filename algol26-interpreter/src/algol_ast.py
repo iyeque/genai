@@ -520,10 +520,17 @@ class BoundDecl(Stmt):
 
 @dataclass
 class CheckStmt(Stmt):
-    """A model-checking command: `check Counter { bound: <expr>; property: <expr>; }`."""
+    """A model-checking command: `check Counter { bound: <expr>; property: <expr>; }`.
+
+    `unbounded;` opts into static 1-induction via Z3 (--smt only): obligations
+    are proven for ALL reachable states, not just an explored prefix. Any
+    `bound:` then serves as the bounded-fallback budget when induction falls
+    short (non-inductive invariant, untranslatable transition body).
+    """
     model_name: str
     bound_decls: List['BoundDecl']
     property_exprs: List[Expr]
+    unbounded: bool = False
 
     def __post_init__(self):
         if self.bound_decls is None:

@@ -1,0 +1,20 @@
+// Phase 5.1 UNBOUNDED model checking: a guarded if/else transition body is
+// symbolically executed (ITE merge) and BOTH invariants are proven inductive
+// over all reachable states: count stays in [0, 10] forever (wrap at 10).
+// Requires --smt. Expected: MODEL CHECK PROVEN (unbounded) x2.
+model Guarded {
+    state count: INTEGER := 0;
+    trans tick: begin
+        if count < 10 then
+            count := count + 1;
+        else
+            count := 0;
+        fi
+    end
+    invariant count >= 0;
+    invariant count <= 10;
+}
+
+check Guarded {
+    unbounded;
+}

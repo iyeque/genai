@@ -1,0 +1,16 @@
+// Phase 5.1 UNBOUNDED model checking: the invariant count >= 0 holds in the
+// initial state (base proven) but is NOT inductive — `dec` breaks the step
+// from count = 0. The bounded fallback (bound 5) then finds the REAL
+// counterexample count = -1 with a trace.
+// --smt: MODEL CHECK REFUTED, exit 0. --smt --verify: hard-fail, exit 1.
+// Normal mode: errors (unbounded requires --smt) — expected failure.
+model DownCounter {
+    state count: INTEGER := 0;
+    trans dec: count := count - 1;
+    invariant count >= 0;
+}
+
+check DownCounter {
+    unbounded;
+    bound: 5;
+}
